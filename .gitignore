@@ -15,3 +15,7 @@ env/
 # Dati e file temporanei
 *.log
 *.tmp
+
+# Ignora tutti i CSV generati automaticamente
+data/*.csv
+
