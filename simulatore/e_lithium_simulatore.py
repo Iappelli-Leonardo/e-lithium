@@ -68,6 +68,10 @@ def generate_dataset(num_days=NUM_GIORNI, data_inizio=DATA_INIZIO):
         "profitto_eur": profitto
     })
 
+
+    df["efficienza_kWh_kg"] = df["energia_kWh"] / df["litio_estratto_kg"]
+    df["margine_%"] = (df["profitto_eur"] / df["ricavi_eur"]) * 100
+    df["costo_unitario_eur_kg"] = df["costi_eur"] / df["litio_estratto_kg"]
     return df
 
 
