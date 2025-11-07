@@ -19,3 +19,6 @@ env/
 # Ignora tutti i CSV generati automaticamente
 data/*.csv
 
+# Ignora file world per appunti 
+*.docx
+
