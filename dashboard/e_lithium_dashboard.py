@@ -7,7 +7,9 @@ import numpy as np
 
 from datetime import datetime
 from dash.dependencies import Input, Output
-from dash import Dash, html, dcc
+from dash import Dash, html, dcc, Input, Output
+
+
 
 
 
@@ -23,6 +25,7 @@ df["data"] = pd.to_datetime(df["data"])
 # ---- Inizializzazione app Dash ----
 app = Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
 app.title = "E-Lithium S.p.A"
+app.config.suppress_callback_exceptions = True 
 
 navbar = dbc.NavbarSimple(
     brand="E-Lithium S.p.A.",
@@ -55,48 +58,98 @@ dcc.DatePickerRange(
 # ---- Layout ----
 app.layout = dbc.Container([
     navbar,
-    html.H1("Dashboard Operativa", className="text-center my-4"),
+    html.H1("E-Lithium S.p.A. – Sistema di Monitoraggio", className="text-center my-4"),
 
-    # Refresh automatico ogni 10 secondi
-    dcc.Interval(id="aggiornamento", interval=10*1000, n_intervals=0),
+    dcc.Tabs(
+        id="tabs",
+        value="tab-dashboard",
+        children=[
+            dcc.Tab(label="📊 Dashboard Operativa", value="tab-dashboard"),
+            dcc.Tab(label="🏭 Scheda Aziendale", value="tab-about"),
+        ],
+        style={"fontWeight": "bold", "fontSize": "16px"}
+    ),
 
-    # --- Sezione KPI ---
-    dbc.Row([
-        dbc.Col(dbc.Card([
-            dbc.CardHeader("Produzione media"),
-            dbc.CardBody(html.H4(id="kpi-produzione"))
-        ], color="primary", inverse=True), width=3),
-
-        dbc.Col(dbc.Card([
-            dbc.CardHeader("Purezza media"),
-            dbc.CardBody(html.H4(id="kpi-purezza"))
-        ], color="success", inverse=True), width=3),
-
-        dbc.Col(dbc.Card([
-            dbc.CardHeader("Profitto medio"),
-            dbc.CardBody(html.H4(id="kpi-profitto"))
-        ], color="info", inverse=True), width=3),
-
-        dbc.Col(dbc.Card([
-            dbc.CardHeader("Margine medio"),
-            dbc.CardBody(html.H4(id="kpi-margine"))
-        ], color="warning", inverse=True), width=3),
-    ], className="mb-4"),
-    
-     dbc.Row([
-        dbc.Col(dcc.Graph(id="grafico-produzione"), width=6),
-        dbc.Col(dcc.Graph(id="grafico-profitto"), width=6),
-    ], className="mb-4"),
-
-    dbc.Row([
-        dbc.Col(dcc.Graph(id="grafico-purezza"), width=6),
-        dbc.Col(dcc.Graph(id="grafico-ambiente"), width=6),
-    ])
-    
+    html.Div(id="tab-content")
 ], fluid=True)
 
 
+
 # ---- CALLBACK per aggiornare automaticamente i dati ----
+@app.callback(
+    Output("tab-content", "children"),
+    Input("tabs", "value")
+)
+def render_tab_content(tab):
+    if tab == "tab-dashboard":
+        return html.Div([
+            dcc.Interval(id="aggiornamento", interval=10*1000, n_intervals=0),
+
+            dbc.Row([
+                dbc.Col(dbc.Card([
+                    dbc.CardHeader("Produzione media"),
+                    dbc.CardBody(html.H4(id="kpi-produzione"))
+                ], color="primary", inverse=True), width=3),
+
+                dbc.Col(dbc.Card([
+                    dbc.CardHeader("Purezza media"),
+                    dbc.CardBody(html.H4(id="kpi-purezza"))
+                ], color="success", inverse=True), width=3),
+
+                dbc.Col(dbc.Card([
+                    dbc.CardHeader("Profitto medio"),
+                    dbc.CardBody(html.H4(id="kpi-profitto"))
+                ], color="info", inverse=True), width=3),
+
+                dbc.Col(dbc.Card([
+                    dbc.CardHeader("Margine medio"),
+                    dbc.CardBody(html.H4(id="kpi-margine"))
+                ], color="warning", inverse=True), width=3),
+            ], className="mb-4"),
+
+            dbc.Row([
+                dbc.Col(dcc.Graph(id="grafico-produzione"), width=6),
+                dbc.Col(dcc.Graph(id="grafico-profitto"), width=6),
+            ], className="mb-4"),
+
+            dbc.Row([
+                dbc.Col(dcc.Graph(id="grafico-purezza"), width=6),
+                dbc.Col(dcc.Graph(id="grafico-ambiente"), width=6),
+            ])
+        ])
+
+    elif tab == "tab-about":
+        return dbc.Container([
+            html.H2("Chi è E-Lithium S.p.A.", className="mt-4"),
+            html.P("""
+                E-Lithium S.p.A. è una società mineraria italiana specializzata 
+                nell’estrazione e raffinazione di litio ad alta purezza, destinato 
+                alla produzione di batterie per veicoli elettrici e sistemi di 
+                accumulo energetico di nuova generazione.
+            """),
+            html.H4("🌍 Mercato e Clienti"),
+            html.P("""
+                L’azienda rifornisce i principali produttori europei di celle agli ioni di litio,
+                con partnership strategiche nel settore automobilistico, motociclistico e
+                dell’elettronica di consumo.
+            """),
+            html.H4("⚙️ Processo Produttivo"),
+            html.Ul([
+                html.Li("Estrazione del minerale di spodumene dalle miniere sarde"),
+                html.Li("Frantumazione e separazione meccanica del minerale grezzo"),
+                html.Li("Purificazione chimica fino al 99,9% di purezza del litio"),
+                html.Li("Controllo qualità e stoccaggio per la distribuzione ai clienti"),
+            ]),
+            html.H4("🏢 Dati Aziendali"),
+            html.Ul([
+                html.Li("Sede: Cagliari (Italia)"),
+                html.Li("Dipendenti: 250"),
+                html.Li("Capacità produttiva: 1.000 kg/giorno di litio raffinato"),
+                html.Li("Fatturato annuo: €18 milioni"),
+            ]),
+            html.P("Ultimo aggiornamento: Novembre 2025", className="text-muted fst-italic")
+        ])
+
 @app.callback(
     [
         Output("grafico-produzione", "figure"),
@@ -106,27 +159,27 @@ app.layout = dbc.Container([
         Output("kpi-produzione", "children"),
         Output("kpi-purezza", "children"),
         Output("kpi-profitto", "children"),
-        Output("kpi-margine", "children"),  # <--- aggiunto qui
+        Output("kpi-margine", "children"),
     ],
     Input("aggiornamento", "n_intervals")
 )
-
 def aggiorna_dati(n):
     df = pd.read_csv("./data/e_lithium_data.csv")
     df["data"] = pd.to_datetime(df["data"])
 
-    # Ricalcola KPI
-    kpi = calcola_kpi(df)
+    kpi = {
+        "avg_profitto": df["profitto_eur"].mean(),
+        "avg_purezza": df["purezza_%"].mean(),
+        "avg_produzione": df["litio_estratto_kg"].mean()
+    }
 
     fig_produzione = px.line(df, x="data", y="litio_estratto_kg", title="Produzione giornaliera di litio (kg)", markers=True)
     fig_profitto = px.line(df, x="data", y="profitto_eur", title="Andamento del profitto (€)", markers=True)
     fig_purezza = px.line(df, x="data", y="purezza_%", title="Purezza media del litio (%)", markers=True)
     fig_ambiente = px.line(df, x="data", y=["temperatura_C", "umidita_%", "CO2_ppm"], title="Condizioni ambientali nella miniera")
-    fig_produzione.update_layout(template="plotly_dark", hovermode="x unified")
-    fig_profitto.update_layout(template="plotly_dark", hovermode="x unified")
-    fig_purezza.update_layout(template="plotly_dark", hovermode="x unified")
-    fig_ambiente.update_layout(template="plotly_dark", hovermode="x unified")
 
+    for f in [fig_produzione, fig_profitto, fig_purezza, fig_ambiente]:
+        f.update_layout(template="plotly_dark", hovermode="x unified")
 
     return (
         fig_produzione,
@@ -136,7 +189,7 @@ def aggiorna_dati(n):
         f"{kpi['avg_produzione']:,.0f} kg/giorno",
         f"{kpi['avg_purezza']:.2f} %",
         f"€ {kpi['avg_profitto']:,.0f}",
-        f"{df['margine_%'].mean():.2f} %",  # <--- aggiunto qui
+        f"{df['margine_%'].mean():.2f} %",
     )
 
 
