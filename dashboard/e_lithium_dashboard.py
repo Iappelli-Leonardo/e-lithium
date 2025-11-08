@@ -58,19 +58,74 @@ dcc.DatePickerRange(
 # ---- Layout ----
 app.layout = dbc.Container([
     navbar,
-    html.H1("E-Lithium S.p.A. – Sistema di Monitoraggio", className="text-center my-4"),
+    html.H1("Sistema di Monitoraggio", className="text-center my-4"),
 
     dcc.Tabs(
         id="tabs",
         value="tab-dashboard",
         children=[
-            dcc.Tab(label="📊 Dashboard Operativa", value="tab-dashboard"),
-            dcc.Tab(label="🏭 Scheda Aziendale", value="tab-about"),
+            dcc.Tab(
+                label="📊 Dashboard Operativa",
+                value="tab-dashboard",
+                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
+                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
+            ),
+            dcc.Tab(
+                label="🏭 Scheda Aziendale",
+                value="tab-about",
+                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
+                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
+            ),
+            dcc.Tab(
+                label="💻 Codice Sorgente", 
+                value="tab-source",
+                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
+                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
+            ),
         ],
-        style={"fontWeight": "bold", "fontSize": "16px"}
+        style={
+            "fontWeight": "bold",
+            "fontSize": "16px",
+            "marginBottom": "2rem"
+        }
     ),
 
-    html.Div(id="tab-content")
+    html.Div(id="tab-content"),
+    
+    # Footer
+    html.Footer(
+        dbc.Container([
+            html.Hr(className="my-3"),
+            dbc.Row([
+                dbc.Col([
+                    html.H6("Contatti", className="text-primary mb-2"),
+                    html.P([
+                        html.Span("Via Roma 123, Roma | "),
+                        html.Span("Tel: +39 070 1234567 | "),
+                        html.Span("info@e-lithium.it")
+                    ], className="mb-0 small")
+                ], width=6),
+                dbc.Col(width=6, children=[
+                    html.H6("Info Legali", className="text-primary mb-2"),
+                    html.P([
+                        "P.IVA: IT12345678901 | REA: CA-123456 | ",
+                        "Cap. Soc.: € 5.000.000 i.v."
+                    ], className="mb-0 small")
+                ])
+            ], className="mb-2"),
+            dbc.Row([
+                dbc.Col([
+                    html.P([
+                        "© 2025 E-Lithium S.p.A. - Tutti i diritti riservati | ",
+                        html.A("Privacy Policy", href="#", className="text-primary text-decoration-none"),
+                        " | ",
+                        html.A("Cookie Policy", href="#", className="text-primary text-decoration-none")
+                    ], className="text-center small mb-0")
+                ])
+            ])
+        ]), 
+        className="mt-4 bg-dark text-light py-3"
+    )
 ], fluid=True)
 
 
@@ -84,6 +139,8 @@ def render_tab_content(tab):
     if tab == "tab-dashboard":
         return html.Div([
             dcc.Interval(id="aggiornamento", interval=10*1000, n_intervals=0),
+
+            html.Div(className="mt-4"),  # Additional top margin
 
             dbc.Row([
                 dbc.Col(dbc.Card([
@@ -118,6 +175,44 @@ def render_tab_content(tab):
             ])
         ])
 
+    elif tab == "tab-source":
+        return dbc.Container([
+            html.Div([
+                html.H2("Codice Sorgente", className="mt-4"),
+                html.P([
+                    "Esplora il codice sorgente di questa dashboard su GitHub ",
+                    html.A([
+                        html.I(className="fab fa-github me-2"),
+                        "Iappelli-Leonardo/e-lithium"
+                    ], 
+                    href="https://github.com/Iappelli-Leonardo/e-lithium",
+                    className="text-decoration-none",
+                    target="_blank")
+                ], className="lead"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("File Principali"),
+                            dbc.CardBody([
+                                html.Ul([
+                                    html.Li([
+                                        html.A("e_lithium_dashboard.py", 
+                                              href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/dashboard/e_lithium_dashboard.py",
+                                              target="_blank")
+                                    ]),
+                                    html.Li([
+                                        html.A("e_lithium_simulatore.py",
+                                              href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/simulatore/e_lithium_simulatore.py",
+                                              target="_blank")
+                                    ])
+                                ])
+                            ])
+                        ], className="mb-4")
+                    ])
+                ])
+            ])
+        ])
+    
     elif tab == "tab-about":
         return dbc.Container([
             html.H2("Chi è E-Lithium S.p.A.", className="mt-4"),
@@ -142,7 +237,7 @@ def render_tab_content(tab):
             ]),
             html.H4("🏢 Dati Aziendali"),
             html.Ul([
-                html.Li("Sede: Cagliari (Italia)"),
+                html.Li("Sede: Roma (Italia)"),
                 html.Li("Dipendenti: 250"),
                 html.Li("Capacità produttiva: 1.000 kg/giorno di litio raffinato"),
                 html.Li("Fatturato annuo: €18 milioni"),
