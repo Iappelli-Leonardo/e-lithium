@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 # ==========================================================
 
 NUM_GIORNI = 60  # giorni simulati
-DATA_INIZIO = datetime(2025, 9, 1)
+DATA_INIZIO = datetime.now() - timedelta(days=NUM_GIORNI)  # Parte da 60 giorni fa fino ad oggi
 
 os.makedirs("data", exist_ok=True)
 OUTPUT_FILE = "data/e_lithium_data.csv"
