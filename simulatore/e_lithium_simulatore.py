@@ -36,12 +36,22 @@ def simulate_production_data(num_days: int):
 
 
 def simulate_economic_data(num_days: int, litio_estratto):
-    """Simula dati economici legati alla vendita di litio"""
-    prezzo = np.random.normal(70, 4, num_days)                    # €/kg
-    costi = np.random.normal(52000, 4500, num_days)               # €/giorno
+    """Simula dati economici legati alla vendita di litio (solo valori positivi per log scale)"""
+
+    prezzo = np.random.lognormal(mean=np.log(70), sigma=0.05, size=num_days)   # da 0.03 → 0.05
+
+    costi = np.random.lognormal(mean=np.log(52000), sigma=0.15, size=num_days) # da 0.08 → 0.15
+
     ricavi = litio_estratto * prezzo
     profitto = ricavi - costi
+
+    # Assicuriamoci che il profitto sia almeno 1 (per log scale)
+    # Evita valori troppo piccoli
+    profitto = np.where(profitto <= 0, np.random.uniform(1000, 5000), profitto)
+
+
     return prezzo, costi, ricavi, profitto
+
 
 
 def generate_dataset(num_days=NUM_GIORNI, data_inizio=DATA_INIZIO):

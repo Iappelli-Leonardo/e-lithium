@@ -1,13 +1,13 @@
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import os
-import pandas as pd
 import numpy as np
-
-from datetime import datetime
+from scipy import stats
+from datetime import datetime, timedelta
 from dash.dependencies import Input, Output
-from dash import Dash, html, dcc, Input, Output
+from dash import Dash, html, dcc, callback
 
 
 # ==========================================================|
@@ -34,10 +34,45 @@ navbar = dbc.NavbarSimple(
 
 # ---- KPI sintetici ----
 def calcola_kpi(df):
+    """Calcola KPI con trend e variazioni percentuali"""
+    if len(df) < 2:
+        return {
+            "avg_profitto": 0, "trend_profitto": 0,
+            "avg_purezza": 0, "trend_purezza": 0,
+            "avg_produzione": 0, "trend_produzione": 0,
+            "avg_margine": 0, "trend_margine": 0
+        }
+    
+    # Dividi i dati in due metà per calcolare il trend
+    mid = len(df) // 2
+    prima_meta = df.iloc[:mid]
+    seconda_meta = df.iloc[mid:]
+    
+    avg_profitto = df["profitto_eur"].mean()
+    avg_profitto_prima = prima_meta["profitto_eur"].mean()
+    avg_profitto_dopo = seconda_meta["profitto_eur"].mean()
+    trend_profitto = ((avg_profitto_dopo - avg_profitto_prima) / abs(avg_profitto_prima) * 100) if avg_profitto_prima != 0 else 0
+    
+    avg_purezza = df["purezza_%"].mean()
+    avg_purezza_prima = prima_meta["purezza_%"].mean()
+    avg_purezza_dopo = seconda_meta["purezza_%"].mean()
+    trend_purezza = ((avg_purezza_dopo - avg_purezza_prima) / avg_purezza_prima * 100) if avg_purezza_prima != 0 else 0
+    
+    avg_produzione = df["litio_estratto_kg"].mean()
+    avg_produzione_prima = prima_meta["litio_estratto_kg"].mean()
+    avg_produzione_dopo = seconda_meta["litio_estratto_kg"].mean()
+    trend_produzione = ((avg_produzione_dopo - avg_produzione_prima) / avg_produzione_prima * 100) if avg_produzione_prima != 0 else 0
+    
+    avg_margine = df["margine_%"].mean()
+    avg_margine_prima = prima_meta["margine_%"].mean()
+    avg_margine_dopo = seconda_meta["margine_%"].mean()
+    trend_margine = ((avg_margine_dopo - avg_margine_prima) / avg_margine_prima * 100) if avg_margine_prima != 0 else 0
+    
     return {
-        "avg_profitto": df["profitto_eur"].mean(),
-        "avg_purezza": df["purezza_%"].mean(),
-        "avg_produzione": df["litio_estratto_kg"].mean()
+        "avg_profitto": avg_profitto, "trend_profitto": trend_profitto,
+        "avg_purezza": avg_purezza, "trend_purezza": trend_purezza,
+        "avg_produzione": avg_produzione, "trend_produzione": trend_produzione,
+        "avg_margine": avg_margine, "trend_margine": trend_margine
     }
 
 kpi = calcola_kpi(df)
@@ -74,6 +109,18 @@ app.layout = dbc.Container([
                 selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
             ),
             dcc.Tab(
+                label="🔮 What-If Simulation",
+                value="tab-whatif",
+                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
+                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
+            ),
+            dcc.Tab(
+                label="📈 Analisi Statistica",
+                value="tab-analysis",
+                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
+                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
+            ),
+            dcc.Tab(
                 label="💻 Codice Sorgente", 
                 value="tab-source",
                 style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
@@ -86,6 +133,9 @@ app.layout = dbc.Container([
             "marginBottom": "2rem"
         }
     ),
+
+    # Sezione Filtri
+    html.Div(id="filtri-container", style={"display": "none"}),
 
     html.Div(id="tab-content"),
     
@@ -110,16 +160,6 @@ app.layout = dbc.Container([
                     ], className="mb-0 small")
                 ])
             ], className="mb-2"),
-            dbc.Row([
-                dbc.Col([
-                    html.P([
-                        "© 2025 E-Lithium S.p.A. - Tutti i diritti riservati | ",
-                        html.A("Privacy Policy", href="#", className="text-primary text-decoration-none"),
-                        " | ",
-                        html.A("Cookie Policy", href="#", className="text-primary text-decoration-none")
-                    ], className="text-center small mb-0")
-                ])
-            ])
         ]), 
         className="mt-4 bg-dark text-light py-3"
     )
@@ -130,9 +170,16 @@ app.layout = dbc.Container([
 # ---- CALLBACK per aggiornare automaticamente i dati ----
 @app.callback(
     Output("tab-content", "children"),
-    Input("tabs", "value")
+    [
+        Input("tabs", "value"),
+        Input("date-picker", "start_date"),
+        Input("date-picker", "end_date"),
+        Input("purezza-slider", "value"),
+        Input("profitto-slider", "value")
+    ],
+    prevent_initial_call=False
 )
-def render_tab_content(tab):
+def render_tab_content(tab, start_date, end_date, purezza_range, profitto_range):
     if tab == "tab-dashboard":
         return html.Div([
             dcc.Interval(id="aggiornamento", interval=10*1000, n_intervals=0),
@@ -269,6 +316,8 @@ def render_tab_content(tab):
     ],
     Input("aggiornamento", "n_intervals")
 )
+
+
 def aggiorna_dati(n):
     df = pd.read_csv("./data/e_lithium_data.csv")
     df["data"] = pd.to_datetime(df["data"])
@@ -279,14 +328,101 @@ def aggiorna_dati(n):
         "avg_produzione": df["litio_estratto_kg"].mean()
     }
 
-    fig_produzione = px.line(df, x="data", y="litio_estratto_kg", title="Produzione giornaliera di litio (kg)", markers=True)
-    fig_profitto = px.line(df, x="data", y="profitto_eur", title="Andamento del profitto (€)", markers=True)
-    fig_purezza = px.line(df, x="data", y="purezza_%", title="Purezza media del litio (%)", markers=True)
-    fig_ambiente = px.line(df, x="data", y=["temperatura_C", "umidita_%", "CO2_ppm"], title="Condizioni ambientali nella miniera")
-    fig_grade = px.line(df, x="data", y="purezza_%", title="Tenore medio del minerale (Grade)", markers=True)
-    fig_prezzo = px.line(df, x="data", y="prezzo_litio_eur_kg", title="Prezzo medio del litio (€/kg)", markers=True)
-    fig_costi = px.line(df, x="data", y="costi_eur", title="Costi operativi giornalieri (€/giorno)", markers=True)
-    fig_guasti = px.line(df, x="data", y="guasti", title="Guasti macchinari (eventi/giorno)", markers=True)
+    #------nuova---
+
+    fig_grade = px.histogram(
+    df, x="purezza_%", nbins=30, histnorm="probability density",
+    title="Distribuzione Gaussiana del Tenore (%)"
+    )
+    fig_grade.add_vline(x=df["purezza_%"].mean(), line_dash="dash")
+
+
+
+    oggi = datetime.now()
+    un_anno_fa = oggi - timedelta(days=365)
+    df_ultimo_anno = df[df['data'] >= un_anno_fa]
+
+
+    fig_profitto = px.histogram(
+    df_ultimo_anno, 
+    x="profitto_eur", 
+    nbins=30, 
+    histnorm=None,  # None = conta i casi, non densità
+    title="Distribuzione del Profitto (€) nell'ultimo anno"
+    )
+
+
+    fig_purezza = px.histogram(
+    df, x="purezza_%", nbins=30, histnorm="probability density",
+    title="Distribuzione della Purezza (%)"
+    )
+    fig_purezza.add_vline(x=df["purezza_%"].mean(), line_dash="dash")
+
+    fig_prezzo = px.histogram(
+    df[df["prezzo_litio_eur_kg"] > 0],
+    x="prezzo_litio_eur_kg",
+    nbins=30,
+    histnorm="probability density",
+    title="Distribuzione Lognormale del Prezzo del Litio (€/kg)"
+    )
+
+    fig_prezzo.update_xaxes(type="linear")
+    fig_prezzo.update_layout(template="plotly_dark")
+
+    fig_costi = px.histogram(
+    df, x="costi_eur", nbins=30, histnorm="probability density",
+    title="Distribuzione dei Costi Operativi (Gauss)"
+    )
+    fig_costi.add_vline(x=df["costi_eur"].mean(), line_dash="dash")
+
+    fig_guasti = px.histogram(
+    df,
+    x="guasti",
+    nbins=int(df["guasti"].max()) + 1,  # <- qui
+    title="Distribuzione di Poisson dei Guasti"
+    )
+
+    fig_produzione = px.histogram(
+    df, x="litio_estratto_kg", nbins=30, histnorm="probability density",
+    title="Distribuzione Gaussiana della Produzione giornaliera di litio (kg)"
+    )
+    fig_produzione.add_vline(x=df["litio_estratto_kg"].mean(), line_dash="dash")
+    fig_produzione.update_layout(template="plotly_dark")
+
+    import plotly.graph_objects as go
+
+    fig_ambiente = go.Figure()
+
+    for col, colore in zip(["temperatura_C", "umidita_%", "CO2_ppm"], ["red", "blue", "green"]):
+        fig_ambiente.add_trace(
+            go.Histogram(
+                x=df[col],
+                name=col,
+                nbinsx=30,
+                histnorm="probability density",
+                marker_color=colore,
+                opacity=0.7
+            )
+        )
+
+    fig_ambiente.update_layout(
+        barmode='overlay',
+        title="Distribuzione Gaussiana delle condizioni ambientali",
+        template="plotly_dark"
+    )
+
+
+
+    #------nuova---
+
+    # fig_produzione = px.line(df, x="data", y="litio_estratto_kg", title="Produzione giornaliera di litio (kg)", markers=True)
+    # fig_profitto = px.line(df, x="data", y="profitto_eur", title="Andamento del profitto (€)", markers=True)
+    # fig_purezza = px.line(df, x="data", y="purezza_%", title="Purezza media del litio (%)", markers=True)
+    # fig_ambiente = px.line(df, x="data", y=["temperatura_C", "umidita_%", "CO2_ppm"], title="Condizioni ambientali nella miniera")
+    # fig_grade = px.line(df, x="data", y="purezza_%", title="Tenore medio del minerale (Grade)", markers=True)
+    # fig_prezzo = px.line(df, x="data", y="prezzo_litio_eur_kg", title="Prezzo medio del litio (€/kg)", markers=True)
+    # fig_costi = px.line(df, x="data", y="costi_eur", title="Costi operativi giornalieri (€/giorno)", markers=True)
+    # fig_guasti = px.line(df, x="data", y="guasti", title="Guasti macchinari (eventi/giorno)", markers=True)
 
     for f in [fig_produzione, fig_profitto, fig_purezza, fig_ambiente, fig_grade, fig_prezzo, fig_costi, fig_guasti]:
         f.update_layout(template="plotly_dark", hovermode="x unified")
