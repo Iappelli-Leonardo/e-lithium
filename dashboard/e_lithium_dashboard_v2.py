@@ -13,9 +13,15 @@ from dash import Dash, html, dcc, callback
 # Sistema di monitoraggio e analisi dei dati di produzione
 # Visualizzazione real-time delle metriche aziendali
 
-# Lettura e preparazione dati dal file CSV
-df = pd.read_csv("./data/e_lithium_data.csv")
-df["data"] = pd.to_datetime(df["data"])
+# Configurazione del percorso assoluto
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+csv_path = os.path.join(project_dir, "data", "e_lithium_data.csv")
+
+# Funzione per caricare i dati in modo fresco da CSV
+def load_data():
+    df = pd.read_csv(csv_path)
+    df["data"] = pd.to_datetime(df["data"])
+    return df
 
 # Inizializzazione dell'applicazione interattiva
 app = Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
@@ -97,15 +103,6 @@ def create_kpi_card(title, value, trend, color, trend_value):
     trend_color = "success" if trend_value >= 0 else "danger"
     trend_icon = "↑" if trend_value >= 0 else "↓"
     
-    # Mapping emoji per le diverse metriche
-    emoji_map = {
-        "Produzione": "📦",
-        "Purezza": "✨",
-        "Profitto": "💰",
-        "Margine": "📊"
-    }
-    emoji = emoji_map.get(title.split()[0], "📈")
-    
     # Descrizioni user-friendly
     descriptions = {
         "Produzione Media": "Quantità media di litio estratta ogni giorno",
@@ -118,17 +115,11 @@ def create_kpi_card(title, value, trend, color, trend_value):
     return dbc.Card([
         dbc.CardBody([
             html.Div([
-                html.Span(emoji, style={"fontSize": "2rem", "marginRight": "15px"}),
-                html.Div([
-                    html.H6(title, className="mb-1 fw-bold"),
-                    html.H4(value, className="mb-2"),
-                    html.Small(description, className="text-muted d-block mb-2"),
-                    html.Span([
-                        html.I(className="fas fa-arrow-up me-2") if trend_value >= 0 else html.I(className="fas fa-arrow-down me-2"),
-                        trend
-                    ], className=f"text-{trend_color} fw-bold small")
-                ], style={"flex": "1"})
-            ], style={"display": "flex", "alignItems": "flex-start"})
+                html.H6(title, className="mb-3 fw-bold", style={"color": "#ffffff", "fontSize": "1.1rem", "textAlign": "center", "borderBottom": "2px solid rgba(255,255,255,0.3)", "paddingBottom": "10px"}),
+                html.H4(value, className="mb-2", style={"color": "#ffffff", "fontWeight": "700", "textAlign": "center"}),
+                html.Small(description, className="text-muted d-block mb-3", style={"textAlign": "center"}),
+                html.Div(trend, style={"color": "#ffffff", "fontWeight": "600", "fontSize": "0.9rem", "textAlign": "center"})
+            ], style={"width": "100%"})
         ])
     ], color=color, inverse=True, className="h-100")
 
@@ -243,8 +234,7 @@ def redirect_to_dashboard(n_clicks):
     prevent_initial_call=False
 )
 def render_tab_content(tab):
-    df_full = pd.read_csv("./data/e_lithium_data.csv")
-    df_full["data"] = pd.to_datetime(df_full["data"])
+    df_full = load_data()
     
     if tab == "tab-dashboard":
         return create_dashboard_tab(df_full, df_full)
@@ -264,14 +254,24 @@ def create_dashboard_tab(df, df_full):
     """Tab Dashboard principale con filtri e KPI dinamici"""
     kpi = calcola_kpi(df)
     
-    start_date = df_full["data"].min()
-    end_date = df_full["data"].max()
+    min_date = df_full["data"].min()
+    max_date = df_full["data"].max()
+    start_date = min_date
+    end_date = max_date
     purezza_range = [df_full["purezza_%"].min(), df_full["purezza_%"].max()]
     profitto_range = [df_full["profitto_eur"].min(), df_full["profitto_eur"].max()]
     
+    # Converti le date in stringhe YYYY-MM-DD se sono Timestamps
+    if pd.api.types.is_datetime64_any_dtype(type(start_date)):
+        start_date = start_date.strftime("%Y-%m-%d")
+    if pd.api.types.is_datetime64_any_dtype(type(end_date)):
+        end_date = end_date.strftime("%Y-%m-%d")
+    
+    # Converti min/max per min_date_allowed e max_date_allowed
+    min_date_str = min_date.strftime("%Y-%m-%d")
+    max_date_str = max_date.strftime("%Y-%m-%d")
+    
     return html.Div([
-        dcc.Interval(id="aggiornamento", interval=10*1000, n_intervals=0),
-
         # Sezione di controllo per filtrare i dati per periodo e parametri
         dbc.Card([
             dbc.CardBody([
@@ -279,13 +279,18 @@ def create_dashboard_tab(df, df_full):
                 dbc.Row([
                     dbc.Col([
                         html.Label("Periodo:", className="fw-bold"),
-                        dcc.DatePickerRange(
-                            id="date-range",
-                            start_date=start_date,
-                            end_date=end_date,
-                            display_format="YYYY-MM-DD",
-                            style={"width": "100%"}
-                        )
+                        dbc.InputGroup([
+                            dcc.DatePickerRange(
+                                id="date-range",
+                                start_date=start_date,
+                                end_date=end_date,
+                                min_date_allowed=min_date_str,
+                                max_date_allowed=max_date_str,
+                                display_format="YYYY-MM-DD",
+                                style={"width": "100%"}
+                            ),
+                            dbc.Button("Applica", id="btn-applica", color="primary", className="ms-2")
+                        ])
                     ], md=4),
                     dbc.Col([
                         html.Label("Purezza (%)", className="fw-bold"),
@@ -514,13 +519,30 @@ def create_source_tab():
         Output("dist-produzione", "figure"),
         Output("dist-profitto", "figure"),
     ],
-    Input("aggiornamento", "n_intervals"),
+    [
+        Input("btn-applica", "n_clicks"),
+        Input("date-range", "start_date"),
+        Input("date-range", "end_date"),
+        Input("purezza-range", "value"),
+        Input("profitto-range", "value"),
+    ],
     prevent_initial_call=False
 )
-def update_dashboard_graphs(n):
+def update_dashboard_graphs(n_clicks, start_date, end_date, purezza_range, profitto_range):
     try:
-        df = pd.read_csv("./data/e_lithium_data.csv")
-        df["data"] = pd.to_datetime(df["data"])
+        df = load_data()
+        
+        # Applico i filtri
+        if start_date:
+            df = df[df["data"] >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df["data"] <= pd.to_datetime(end_date)]
+        
+        if isinstance(purezza_range, (list, tuple)) and len(purezza_range) == 2:
+            df = df[(df["purezza_%"] >= purezza_range[0]) & (df["purezza_%"] <= purezza_range[1])]
+        
+        if isinstance(profitto_range, (list, tuple)) and len(profitto_range) == 2:
+            df = df[(df["profitto_eur"] >= profitto_range[0]) & (df["profitto_eur"] <= profitto_range[1])]
         
         # Controllo della disponibilità e validità dei dati
         if len(df) == 0:
@@ -589,8 +611,7 @@ def update_dashboard_graphs(n):
 )
 def update_whatif(prod_change, prezzo_change, costi_change):
     try:
-        df = pd.read_csv("./data/e_lithium_data.csv")
-        df["data"] = pd.to_datetime(df["data"])
+        df = load_data()
         
         if len(df) == 0:
             empty_fig = go.Figure()
@@ -627,13 +648,30 @@ def update_whatif(prod_change, prezzo_change, costi_change):
     [Output("correlazione-matrix", "figure"), 
      Output("outliers-produzione", "figure"),
      Output("stats-description", "children")],
-    Input("aggiornamento", "n_intervals"),
+    [
+        Input("btn-applica", "n_clicks"),
+        Input("date-range", "start_date"),
+        Input("date-range", "end_date"),
+        Input("purezza-range", "value"),
+        Input("profitto-range", "value"),
+    ],
     prevent_initial_call=False
 )
-def update_analysis(n):
+def update_analysis(n_clicks, start_date, end_date, purezza_range, profitto_range):
     try:
-        df = pd.read_csv("./data/e_lithium_data.csv")
-        df["data"] = pd.to_datetime(df["data"])
+        df = load_data()
+        
+        # Applico i filtri
+        if start_date:
+            df = df[df["data"] >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df["data"] <= pd.to_datetime(end_date)]
+        
+        if isinstance(purezza_range, (list, tuple)) and len(purezza_range) == 2:
+            df = df[(df["purezza_%"] >= purezza_range[0]) & (df["purezza_%"] <= purezza_range[1])]
+        
+        if isinstance(profitto_range, (list, tuple)) and len(profitto_range) == 2:
+            df = df[(df["profitto_eur"] >= profitto_range[0]) & (df["profitto_eur"] <= profitto_range[1])]
         
         if len(df) == 0:
             empty_fig = go.Figure()

@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 #  Azienda mineraria di litio per batterie elettriche
 # ==========================================================
 
-NUM_GIORNI = 60  # giorni simulati
-DATA_INIZIO = datetime.now() - timedelta(days=NUM_GIORNI)  # Parte da 60 giorni fa fino ad oggi
+NUM_GIORNI = 365  # giorni simulati
+DATA_INIZIO = datetime.now() - timedelta(days=NUM_GIORNI)  # Parte da 365 giorni fa fino ad oggi
 
 os.makedirs("data", exist_ok=True)
 OUTPUT_FILE = "data/e_lithium_data.csv"
