@@ -10,9 +10,6 @@ from dash.dependencies import Input, Output
 from dash import Dash, html, dcc, Input, Output
 
 
-
-
-
 # ==========================================================|
 # Dashboard interattiva E-Lithium S.p.A.                    |
 # Analisi delle prestazioni operative della miniera di litio|
@@ -170,6 +167,16 @@ def render_tab_content(tab):
             ], className="mb-4"),
 
             dbc.Row([
+                dbc.Col(dcc.Graph(id="grafico-grade"), width=6),
+                dbc.Col(dcc.Graph(id="grafico-prezzo"), width=6),
+            ], className="mb-4"),
+
+            dbc.Row([
+                dbc.Col(dcc.Graph(id="grafico-costi"), width=6),
+                dbc.Col(dcc.Graph(id="grafico-guasti"), width=6),
+            ], className="mb-4"),
+
+            dbc.Row([
                 dbc.Col(dcc.Graph(id="grafico-purezza"), width=6),
                 dbc.Col(dcc.Graph(id="grafico-ambiente"), width=6),
             ])
@@ -255,6 +262,10 @@ def render_tab_content(tab):
         Output("kpi-purezza", "children"),
         Output("kpi-profitto", "children"),
         Output("kpi-margine", "children"),
+        Output("grafico-grade", "figure"),
+        Output("grafico-prezzo", "figure"),
+        Output("grafico-costi", "figure"),
+        Output("grafico-guasti", "figure"),
     ],
     Input("aggiornamento", "n_intervals")
 )
@@ -272,20 +283,32 @@ def aggiorna_dati(n):
     fig_profitto = px.line(df, x="data", y="profitto_eur", title="Andamento del profitto (€)", markers=True)
     fig_purezza = px.line(df, x="data", y="purezza_%", title="Purezza media del litio (%)", markers=True)
     fig_ambiente = px.line(df, x="data", y=["temperatura_C", "umidita_%", "CO2_ppm"], title="Condizioni ambientali nella miniera")
+    fig_grade = px.line(df, x="data", y="purezza_%", title="Tenore medio del minerale (Grade)", markers=True)
+    fig_prezzo = px.line(df, x="data", y="prezzo_litio_eur_kg", title="Prezzo medio del litio (€/kg)", markers=True)
+    fig_costi = px.line(df, x="data", y="costi_eur", title="Costi operativi giornalieri (€/giorno)", markers=True)
+    fig_guasti = px.line(df, x="data", y="guasti", title="Guasti macchinari (eventi/giorno)", markers=True)
 
-    for f in [fig_produzione, fig_profitto, fig_purezza, fig_ambiente]:
+    for f in [fig_produzione, fig_profitto, fig_purezza, fig_ambiente, fig_grade, fig_prezzo, fig_costi, fig_guasti]:
         f.update_layout(template="plotly_dark", hovermode="x unified")
 
     return (
-        fig_produzione,
-        fig_profitto,
-        fig_purezza,
-        fig_ambiente,
-        f"{kpi['avg_produzione']:,.0f} kg/giorno",
-        f"{kpi['avg_purezza']:.2f} %",
-        f"€ {kpi['avg_profitto']:,.0f}",
-        f"{df['margine_%'].mean():.2f} %",
-    )
+    fig_produzione,
+    fig_profitto,
+    fig_purezza,
+    fig_ambiente,
+
+    f"{kpi['avg_produzione']:,.0f} kg/giorno",
+    f"{kpi['avg_purezza']:.2f} %",
+    f"€ {kpi['avg_profitto']:,.0f}",
+    f"{df['margine_%'].mean():.2f} %",
+
+    fig_grade,
+    fig_prezzo,
+    fig_costi,
+    fig_guasti,
+)
+
+
 
 
 

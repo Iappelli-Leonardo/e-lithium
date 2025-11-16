@@ -28,10 +28,11 @@ def simulate_environmental_data(num_days: int):
 def simulate_production_data(num_days: int):
     """Simula dati produttivi: quantità, purezza, energia, guasti"""
     litio_estratto = np.random.normal(980, 100, num_days)         # kg/giorno
-    purezza = np.random.normal(97.5, 1.2, num_days)               # %
+    #purezza = np.random.normal(97.5, 1.2, num_days)              # %
+    grade = np.random.normal(0.975, 0.012, num_days)              # frazione 0-1 (97.5%)
     energia = np.random.normal(3400, 200, num_days)               # kWh/giorno
     guasti = np.random.poisson(0.15, num_days)                    # guasti/giorno
-    return litio_estratto, purezza, energia, guasti
+    return litio_estratto, grade, energia, guasti
 
 
 def simulate_economic_data(num_days: int, litio_estratto):
@@ -48,7 +49,7 @@ def generate_dataset(num_days=NUM_GIORNI, data_inizio=DATA_INIZIO):
     date_rng = [data_inizio + timedelta(days=i) for i in range(num_days)]
 
     temp, hum, co2, dust, water = simulate_environmental_data(num_days)
-    litio, purezza, energia, guasti = simulate_production_data(num_days)
+    litio, grade, energia, guasti = simulate_production_data(num_days)
     prezzo, costi, ricavi, profitto = simulate_economic_data(num_days, litio)
 
     df = pd.DataFrame({
@@ -59,7 +60,7 @@ def generate_dataset(num_days=NUM_GIORNI, data_inizio=DATA_INIZIO):
         "polveri_ug_m3": dust,
         "livello_falda_m": water,
         "litio_estratto_kg": litio,
-        "purezza_%": purezza,
+        "purezza_%": grade,
         "energia_kWh": energia,
         "guasti": guasti,
         "prezzo_litio_eur_kg": prezzo,
