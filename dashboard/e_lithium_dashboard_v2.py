@@ -4,6 +4,8 @@ import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import os
 import numpy as np
+import subprocess
+import sys
 from datetime import datetime, timedelta
 from dash.dependencies import Input, Output, State
 from dash import Dash, html, dcc, callback
@@ -16,6 +18,16 @@ from dash import Dash, html, dcc, callback
 # Configurazione del percorso assoluto
 project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 csv_path = os.path.join(project_dir, "data", "e_lithium_data.csv")
+simulatore_path = os.path.join(project_dir, "simulatore", "e_lithium_simulatore.py")
+
+# Avvia il simulatore per generare i dati freschi (solo una volta, non in debug reload)
+if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    print("[Dashboard] Avviamento del simulatore per generare i dati...")
+    try:
+        subprocess.run([sys.executable, simulatore_path], check=True, cwd=project_dir)
+        print("[Dashboard] Simulatore completato con successo!")
+    except Exception as e:
+        print(f"[Dashboard] Errore nell'avvio del simulatore: {str(e)}")
 
 # Funzione per caricare i dati in modo fresco da CSV
 def load_data():
@@ -279,18 +291,15 @@ def create_dashboard_tab(df, df_full):
                 dbc.Row([
                     dbc.Col([
                         html.Label("Periodo:", className="fw-bold"),
-                        dbc.InputGroup([
-                            dcc.DatePickerRange(
-                                id="date-range",
-                                start_date=start_date,
-                                end_date=end_date,
-                                min_date_allowed=min_date_str,
-                                max_date_allowed=max_date_str,
-                                display_format="YYYY-MM-DD",
-                                style={"width": "100%"}
-                            ),
-                            dbc.Button("Applica", id="btn-applica", color="primary", className="ms-2")
-                        ])
+                        dcc.DatePickerRange(
+                            id="date-range",
+                            start_date=start_date,
+                            end_date=end_date,
+                            min_date_allowed=min_date_str,
+                            max_date_allowed=max_date_str,
+                            display_format="YYYY-MM-DD",
+                            style={"width": "100%"}
+                        )
                     ], md=4),
                     dbc.Col([
                         html.Label("Purezza (%)", className="fw-bold"),
@@ -520,7 +529,6 @@ def create_source_tab():
         Output("dist-profitto", "figure"),
     ],
     [
-        Input("btn-applica", "n_clicks"),
         Input("date-range", "start_date"),
         Input("date-range", "end_date"),
         Input("purezza-range", "value"),
@@ -528,7 +536,7 @@ def create_source_tab():
     ],
     prevent_initial_call=False
 )
-def update_dashboard_graphs(n_clicks, start_date, end_date, purezza_range, profitto_range):
+def update_dashboard_graphs(start_date, end_date, purezza_range, profitto_range):
     try:
         df = load_data()
         
@@ -649,7 +657,6 @@ def update_whatif(prod_change, prezzo_change, costi_change):
      Output("outliers-produzione", "figure"),
      Output("stats-description", "children")],
     [
-        Input("btn-applica", "n_clicks"),
         Input("date-range", "start_date"),
         Input("date-range", "end_date"),
         Input("purezza-range", "value"),
@@ -657,7 +664,7 @@ def update_whatif(prod_change, prezzo_change, costi_change):
     ],
     prevent_initial_call=False
 )
-def update_analysis(n_clicks, start_date, end_date, purezza_range, profitto_range):
+def update_analysis(start_date, end_date, purezza_range, profitto_range):
     try:
         df = load_data()
         
