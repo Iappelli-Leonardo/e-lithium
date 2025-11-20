@@ -1,8 +1,7 @@
+dash
+dash-bootstrap-components
 pandas
 numpy
 plotly
-dash
-pandas
-numpy
-plotly
-dash
+scipy
+gunicorn
