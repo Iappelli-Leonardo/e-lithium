@@ -9,6 +9,8 @@ import sys
 from datetime import datetime, timedelta
 from dash.dependencies import Input, Output, State
 from dash import Dash, html, dcc, callback
+from scipy import stats
+from scipy.stats import gaussian_kde
 
 
 # Dashboard Interattiva E-Lithium S.p.A. - Versione 2.0
@@ -359,31 +361,38 @@ def create_dashboard_tab(df, df_full):
             ), width=3, className="mb-3"),
         ], className="mb-4"),
 
-        # Serie temporali delle principali metriche operative
+        # Distribuzioni Teoriche - Sezione 1: Gaussiane
+        html.H3("📊 Distribuzioni Gaussiane (Normali)", className="mt-4 mb-3 text-center", style={"borderBottom": "3px solid #636EFA", "paddingBottom": "10px"}),
+        
         dbc.Row([
-            dbc.Col(dcc.Graph(id="time-produzione"), width=6),
-            dbc.Col(dcc.Graph(id="time-profitto"), width=6),
+            dbc.Col(dcc.Graph(id="dist-produzione-gauss"), width=6),
+            dbc.Col(dcc.Graph(id="dist-purezza-gauss"), width=6),
+        ], className="mb-4"),
+        
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="dist-margine-gauss"), width=6),
+            dbc.Col(dcc.Graph(id="dist-costi-gauss"), width=6),
         ], className="mb-4"),
 
+        # Distribuzioni Teoriche - Sezione 2: Log-Normali
+        html.H3("📈 Distribuzioni Log-Normali", className="mt-5 mb-3 text-center", style={"borderBottom": "3px solid #00CC96", "paddingBottom": "10px"}),
+        
         dbc.Row([
-            dbc.Col(dcc.Graph(id="time-purezza"), width=6),
-            dbc.Col(dcc.Graph(id="time-margine"), width=6),
+            dbc.Col(dcc.Graph(id="dist-profitto-lognorm"), width=6),
+            dbc.Col(dcc.Graph(id="dist-prezzo-lognorm"), width=6),
         ], className="mb-4"),
 
-        # Visualizzazione multidimensionale delle relazioni tra variabili
+        # Distribuzioni Teoriche - Sezione 3: Poisson
+        html.H3("⚠️ Distribuzione di Poisson (Eventi Rari)", className="mt-5 mb-3 text-center", style={"borderBottom": "3px solid #AB63FA", "paddingBottom": "10px"}),
+        
         dbc.Row([
-            dbc.Col(dcc.Graph(id="scatter-3d"), width=12),
+            dbc.Col(dcc.Graph(id="dist-guasti-poisson"), width=12),
         ], className="mb-4"),
 
         # Mappa di calore della matrice di correlazione
+        html.H4("🔗 Matrice di Correlazione", className="mt-4 mb-3"),
         dbc.Row([
             dbc.Col(dcc.Graph(id="heatmap-correlazioni"), width=12),
-        ], className="mb-4"),
-
-        # Grafici di distribuzione dei dati di produzione e profitto
-        dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-produzione"), width=6),
-            dbc.Col(dcc.Graph(id="dist-profitto"), width=6),
         ], className="mb-4"),
     ])
 
@@ -516,17 +525,211 @@ def create_source_tab():
     ])
 
 
+# Funzioni helper per creare grafici di distribuzione teorica
+def create_gaussian_distribution(df, column, title, color="#636EFA"):
+    """Crea istogramma con fit Gaussiano (Normale)"""
+    fig = go.Figure()
+    
+    data = df[column].dropna().values
+    if len(data) < 2:
+        fig.add_annotation(text="Dati insufficienti")
+        return fig
+    
+    # Istogramma empirico
+    fig.add_trace(go.Histogram(
+        x=data,
+        name='Dati Empirici',
+        histnorm='probability density',
+        marker_color=color,
+        opacity=0.6,
+        nbinsx=30
+    ))
+    
+    # Fit Gaussiano
+    try:
+        mu, sigma = data.mean(), data.std()
+        x_range = np.linspace(data.min(), data.max(), 300)
+        y_gaussian = stats.norm.pdf(x_range, mu, sigma)
+        
+        fig.add_trace(go.Scatter(
+            x=x_range,
+            y=y_gaussian,
+            mode='lines',
+            name=f'Gauss(μ={mu:.2f}, σ={sigma:.2f})',
+            line=dict(color='red', width=3)
+        ))
+        
+        # Aggiungi statistiche
+        fig.add_annotation(
+            text=f"μ = {mu:.2f}<br>σ = {sigma:.2f}<br>CV = {(sigma/mu*100):.1f}%",
+            xref="paper", yref="paper",
+            x=0.98, y=0.98, showarrow=False,
+            bgcolor="rgba(0,0,0,0.5)",
+            font=dict(color="white", size=11),
+            align="right"
+        )
+    except Exception as e:
+        print(f"Errore Gaussian fit: {e}")
+    
+    fig.update_layout(
+        title=title,
+        xaxis_title=column,
+        yaxis_title='Densità di Probabilità',
+        template='plotly_dark',
+        showlegend=True
+    )
+    return fig
+
+
+def create_lognormal_distribution(df, column, title, color="#00CC96"):
+    """Crea istogramma con fit Log-Normale"""
+    fig = go.Figure()
+    
+    data = df[column].dropna().values
+    data = data[data > 0]  # Log-normale richiede valori positivi
+    
+    if len(data) < 2:
+        fig.add_annotation(text="Dati insufficienti")
+        return fig
+    
+    # Istogramma empirico
+    fig.add_trace(go.Histogram(
+        x=data,
+        name='Dati Empirici',
+        histnorm='probability density',
+        marker_color=color,
+        opacity=0.6,
+        nbinsx=30
+    ))
+    
+    # Fit Log-Normale
+    try:
+        # Parametri della log-normale: s (shape), loc, scale
+        shape, loc, scale = stats.lognorm.fit(data, floc=0)
+        
+        x_range = np.linspace(data.min(), data.max(), 300)
+        y_lognorm = stats.lognorm.pdf(x_range, shape, loc, scale)
+        
+        # Calcola media e mediana della log-normale
+        mean_ln = np.exp(np.log(scale) + shape**2 / 2)
+        median_ln = scale
+        
+        fig.add_trace(go.Scatter(
+            x=x_range,
+            y=y_lognorm,
+            mode='lines',
+            name=f'Log-Normale(σ={shape:.2f})',
+            line=dict(color='orange', width=3)
+        ))
+        
+        # Aggiungi statistiche
+        fig.add_annotation(
+            text=f"Media = {mean_ln:.2f}<br>Mediana = {median_ln:.2f}<br>σ = {shape:.3f}",
+            xref="paper", yref="paper",
+            x=0.98, y=0.98, showarrow=False,
+            bgcolor="rgba(0,0,0,0.5)",
+            font=dict(color="white", size=11),
+            align="right"
+        )
+    except Exception as e:
+        print(f"Errore Log-Normal fit: {e}")
+    
+    fig.update_layout(
+        title=title,
+        xaxis_title=column,
+        yaxis_title='Densità di Probabilità',
+        template='plotly_dark',
+        showlegend=True
+    )
+    return fig
+
+
+def create_poisson_distribution(df, column, title, color="#AB63FA"):
+    """Crea grafico PMF Poissoniano con curve multiple (eventi discreti)"""
+    fig = go.Figure()
+    
+    data = df[column].dropna().values.astype(int)
+    
+    if len(data) < 2:
+        fig.add_annotation(text="Dati insufficienti")
+        return fig
+    
+    # Stima λ dai dati empirici
+    lambda_est = data.mean()
+    
+    # Definisci 3 valori di λ per confronto (basati sui dati)
+    lambda_values = [
+        max(0.5, lambda_est * 0.5),  # λ basso
+        lambda_est,                   # λ stimato
+        lambda_est * 2.0              # λ alto
+    ]
+    
+    colors_poisson = ['#FFA500', '#AB63FA', '#19D3F3']  # arancione, viola, azzurro
+    
+    # Range x per le curve
+    x_max = max(int(lambda_values[-1] * 2.5), max(data) + 5)
+    x_range = np.arange(0, x_max + 1)
+    
+    # Disegna le curve di Poisson per diversi λ
+    try:
+        for i, lambda_val in enumerate(lambda_values):
+            y_poisson = stats.poisson.pmf(x_range, lambda_val)
+            
+            fig.add_trace(go.Scatter(
+                x=x_range,
+                y=y_poisson,
+                mode='lines+markers',
+                name=f'λ = {lambda_val:.1f}',
+                line=dict(color=colors_poisson[i], width=2.5),
+                marker=dict(size=7, symbol='circle')
+            ))
+        
+        # Aggiungi statistiche
+        fig.add_annotation(
+            text=f"λ stimato = {lambda_est:.2f}<br>Var = {data.var():.2f}<br>Eventi totali = {len(data)}",
+            xref="paper", yref="paper",
+            x=0.02, y=0.98, showarrow=False,
+            bgcolor="rgba(0,0,0,0.7)",
+            font=dict(color="white", size=11),
+            align="left",
+            xanchor="left",
+            yanchor="top"
+        )
+    except Exception as e:
+        print(f"Errore Poisson fit: {e}")
+    
+    fig.update_layout(
+        title=title,
+        xaxis_title='k (numero di eventi)',
+        yaxis_title='P(x = k)',
+        template='plotly_dark',
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(0,0,0,0.5)'
+        ),
+        xaxis=dict(dtick=1)
+    )
+    return fig
+
+
+
+
+
 # Aggiornamento automatico dei grafici nel dashboard principale
 @app.callback(
     [
-        Output("time-produzione", "figure"),
-        Output("time-profitto", "figure"),
-        Output("time-purezza", "figure"),
-        Output("time-margine", "figure"),
-        Output("scatter-3d", "figure"),
+        Output("dist-produzione-gauss", "figure"),
+        Output("dist-purezza-gauss", "figure"),
+        Output("dist-margine-gauss", "figure"),
+        Output("dist-costi-gauss", "figure"),
+        Output("dist-profitto-lognorm", "figure"),
+        Output("dist-prezzo-lognorm", "figure"),
+        Output("dist-guasti-poisson", "figure"),
         Output("heatmap-correlazioni", "figure"),
-        Output("dist-produzione", "figure"),
-        Output("dist-profitto", "figure"),
     ],
     [
         Input("date-range", "start_date"),
@@ -553,61 +756,89 @@ def update_dashboard_graphs(start_date, end_date, purezza_range, profitto_range)
             df = df[(df["profitto_eur"] >= profitto_range[0]) & (df["profitto_eur"] <= profitto_range[1])]
         
         # Controllo della disponibilità e validità dei dati
-        if len(df) == 0:
+        if len(df) < 2:
             empty_fig = go.Figure()
-            empty_fig.add_annotation(text="Nessun dato disponibile")
+            empty_fig.add_annotation(text="Dati insufficienti per l'analisi")
+            empty_fig.update_layout(template="plotly_dark")
             return [empty_fig] * 8
         
-        # Serie temporali della produzione, profitto, purezza e margine
-        fig_prod = px.line(df, x="data", y="litio_estratto_kg", 
-                           title="Produzione Giornaliera (kg)",
-                           markers=True)
-        fig_prof = px.line(df, x="data", y="profitto_eur", 
-                           title="Profitto Giornaliero (€)",
-                           markers=True)
-        fig_pure = px.line(df, x="data", y="purezza_%", 
-                           title="Purezza Media (%)",
-                           markers=True)
-        fig_marg = px.line(df, x="data", y="margine_%", 
-                           title="Margine Medio (%)",
-                           markers=True)
+        # === DISTRIBUZIONI GAUSSIANE ===
+        fig_prod_gauss = create_gaussian_distribution(
+            df, "litio_estratto_kg", 
+            "📦 Produzione Media Litio Estratto - Distribuzione Gaussiana",
+            "#636EFA"
+        )
         
-        # Rappresentazione tridimensionale delle interazioni tra variabili produttive
-        fig_3d = px.scatter_3d(df, x="litio_estratto_kg", y="purezza_%", 
-                               z="profitto_eur",
-                               color="margine_%",
-                               title="Correlazione 3D: Produzione-Purezza-Profitto")
+        fig_pure_gauss = create_gaussian_distribution(
+            df, "purezza_%",
+            "✨ Tenore Medio del Minerale (Purezza %) - Distribuzione Gaussiana",
+            "#19D3F3"
+        )
         
-        # Heatmap Correlazioni
-        # Calcolo delle correlazioni tra le principali metriche
-        corr_cols = ["litio_estratto_kg", "purezza_%", "profitto_eur", "margine_%", "costi_eur"]
+        fig_marg_gauss = create_gaussian_distribution(
+            df, "margine_%",
+            "📊 Margine Medio (%) - Distribuzione Gaussiana",
+            "#FFA15A"
+        )
+        
+        fig_costi_gauss = create_gaussian_distribution(
+            df, "costi_eur",
+            "💸 Costi Medi Operativi (€) - Distribuzione Gaussiana",
+            "#FF6692"
+        )
+        
+        # === DISTRIBUZIONI LOG-NORMALI ===
+        fig_prof_lognorm = create_lognormal_distribution(
+            df, "profitto_eur",
+            "💰 Profitto Medio (€) - Distribuzione Log-Normale",
+            "#00CC96"
+        )
+        
+        fig_prezzo_lognorm = create_lognormal_distribution(
+            df, "prezzo_litio_eur_kg",
+            "💵 Prezzo Medio del Litio (€/kg) - Distribuzione Log-Normale",
+            "#FECB52"
+        )
+        
+        # === DISTRIBUZIONE DI POISSON ===
+        fig_guasti_poisson = create_poisson_distribution(
+            df, "guasti",
+            "⚠️ Guasti Macchinari (Eventi Rari) - Distribuzione di Poisson",
+            "#AB63FA"
+        )
+        
+        # === HEATMAP CORRELAZIONI ===
+        corr_cols = ["litio_estratto_kg", "purezza_%", "profitto_eur", "margine_%", "costi_eur", "prezzo_litio_eur_kg", "guasti"]
         corr_matrix = df[corr_cols].corr()
         fig_heatmap = go.Figure(data=go.Heatmap(
             z=corr_matrix.values,
             x=corr_cols,
             y=corr_cols,
             colorscale="RdBu",
-            zmid=0
+            zmid=0,
+            text=corr_matrix.values.round(2),
+            texttemplate="%{text}",
+            textfont={"size": 10},
+            colorbar=dict(title="Correlazione")
         ))
-        fig_heatmap.update_layout(title="Matrice di Correlazione")
+        fig_heatmap.update_layout(
+            title="🔗 Matrice di Correlazione tra Metriche",
+            template="plotly_dark",
+            height=600
+        )
         
-        # Istogrammi che mostrano il comportamento distributivo dei dati di produzione e profitto
-        fig_dist_prod = px.histogram(df, x="litio_estratto_kg", 
-                                     nbins=30,
-                                     title="Distribuzione Produzione")
-        fig_dist_prof = px.histogram(df, x="profitto_eur", 
-                                     nbins=30,
-                                     title="Distribuzione Profitto")
-        
-        for fig in [fig_prod, fig_prof, fig_pure, fig_marg, fig_3d, fig_heatmap, fig_dist_prod, fig_dist_prof]:
-            fig.update_layout(template="plotly_dark", hovermode="x unified")
-        
-        return fig_prod, fig_prof, fig_pure, fig_marg, fig_3d, fig_heatmap, fig_dist_prod, fig_dist_prof
+        return (fig_prod_gauss, fig_pure_gauss, fig_marg_gauss, fig_costi_gauss,
+                fig_prof_lognorm, fig_prezzo_lognorm,
+                fig_guasti_poisson,
+                fig_heatmap)
     
     except Exception as e:
         print(f"Errore nei grafici dashboard: {str(e)}")
+        import traceback
+        traceback.print_exc()
         empty_fig = go.Figure()
         empty_fig.add_annotation(text=f"Errore: {str(e)}")
+        empty_fig.update_layout(template="plotly_dark")
         return [empty_fig] * 8
 
 
