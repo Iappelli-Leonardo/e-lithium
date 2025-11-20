@@ -66,8 +66,18 @@ navbar = dbc.Navbar(
                 ),
                 href="#"
             ),
+            html.Span(
+                "v 1.0.0",
+                style={
+                    "color": "#6c757d",
+                    "fontSize": "0.9rem",
+                    "marginLeft": "auto",
+                    "alignSelf": "center"
+                }
+            ),
         ],
         fluid=True,
+        style={"display": "flex", "justifyContent": "space-between"}
     ),
     color="dark",
     dark=True,
