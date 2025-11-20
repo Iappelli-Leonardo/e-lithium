@@ -37,8 +37,14 @@ def load_data():
     df["data"] = pd.to_datetime(df["data"])
     return df
 
-# Inizializzazione dell'applicazione interattiva
-app = Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
+# Inizializzazione dell'applicazione interattiva con supporto mobile
+app = Dash(
+    __name__, 
+    external_stylesheets=[dbc.themes.SOLAR],
+    meta_tags=[
+        {"name": "viewport", "content": "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"}
+    ]
+)
 app.title = "E-Lithium S.p.A"
 app.config.suppress_callback_exceptions = True 
 
@@ -113,7 +119,7 @@ def calcola_kpi(df):
 
 
 def create_kpi_card(title, value, trend, color, trend_value):
-    """Creazione delle card KPI con indicatori visivi per trend e performance"""
+    """Creazione delle card KPI con indicatori visivi per trend e performance - Responsive Mobile"""
     trend_color = "success" if trend_value >= 0 else "danger"
     trend_icon = "↑" if trend_value >= 0 else "↓"
     
@@ -129,13 +135,32 @@ def create_kpi_card(title, value, trend, color, trend_value):
     return dbc.Card([
         dbc.CardBody([
             html.Div([
-                html.H6(title, className="mb-3 fw-bold", style={"color": "#ffffff", "fontSize": "1.1rem", "textAlign": "center", "borderBottom": "2px solid rgba(255,255,255,0.3)", "paddingBottom": "10px"}),
-                html.H4(value, className="mb-2", style={"color": "#ffffff", "fontWeight": "700", "textAlign": "center"}),
-                html.Small(description, className="text-muted d-block mb-3", style={"textAlign": "center"}),
-                html.Div(trend, style={"color": "#ffffff", "fontWeight": "600", "fontSize": "0.9rem", "textAlign": "center"})
-            ], style={"width": "100%"})
-        ])
-    ], color=color, inverse=True, className="h-100")
+                html.H6(title, className="mb-2 fw-bold", style={
+                    "color": "#ffffff", 
+                    "fontSize": "clamp(0.9rem, 2.5vw, 1.1rem)",  # Responsive font size
+                    "textAlign": "center", 
+                    "borderBottom": "2px solid rgba(255,255,255,0.3)", 
+                    "paddingBottom": "8px"
+                }),
+                html.H4(value, className="mb-2", style={
+                    "color": "#ffffff", 
+                    "fontWeight": "700", 
+                    "textAlign": "center",
+                    "fontSize": "clamp(1.2rem, 4vw, 1.5rem)"  # Responsive font size
+                }),
+                html.Small(description, className="text-muted d-block mb-2", style={
+                    "textAlign": "center",
+                    "fontSize": "clamp(0.7rem, 2vw, 0.85rem)"  # Responsive font size
+                }),
+                html.Div(trend, style={
+                    "color": "#ffffff", 
+                    "fontWeight": "600", 
+                    "fontSize": "clamp(0.8rem, 2.5vw, 0.9rem)",  # Responsive font size
+                    "textAlign": "center"
+                })
+            ], style={"width": "100%", "padding": "0.5rem"})
+        ], style={"padding": "0.75rem"})
+    ], color=color, inverse=True, className="h-100 mb-3")
 
 
 def detect_outliers(series, method='iqr'):
@@ -148,7 +173,7 @@ def detect_outliers(series, method='iqr'):
     return (series < lower_bound) | (series > upper_bound)
 
 
-# Struttura principale dell'interfaccia utente
+# Struttura principale dell'interfaccia utente - Responsive Mobile
 app.layout = dbc.Container([
     navbar,
     html.H1("Sistema di Monitoraggio", className="text-center my-4"),
@@ -286,13 +311,17 @@ def create_dashboard_tab(df, df_full):
     max_date_str = max_date.strftime("%Y-%m-%d")
     
     return html.Div([
-        # Sezione di controllo per filtrare i dati per periodo e parametri
+        # Sezione di controllo per filtrare i dati per periodo e parametri - Responsive
         dbc.Card([
             dbc.CardBody([
-                html.H5("🔍 Filtri Interattivi", className="mb-3"),
+                html.H5("🔍 Filtri Interattivi", className="mb-3", style={
+                    "fontSize": "clamp(1rem, 3vw, 1.25rem)"
+                }),
                 dbc.Row([
                     dbc.Col([
-                        html.Label("Periodo:", className="fw-bold"),
+                        html.Label("Periodo:", className="fw-bold", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
+                        }),
                         dcc.DatePickerRange(
                             id="date-range",
                             start_date=start_date,
@@ -302,9 +331,11 @@ def create_dashboard_tab(df, df_full):
                             display_format="YYYY-MM-DD",
                             style={"width": "100%"}
                         )
-                    ], md=4),
+                    ], xs=12, md=4, className="mb-3"),
                     dbc.Col([
-                        html.Label("Purezza (%)", className="fw-bold"),
+                        html.Label("Purezza (%)", className="fw-bold", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
+                        }),
                         dcc.RangeSlider(
                             id="purezza-range",
                             min=df_full["purezza_%"].min(),
@@ -313,9 +344,11 @@ def create_dashboard_tab(df, df_full):
                             marks={i: f"{i:.1f}" for i in np.linspace(df_full["purezza_%"].min(), df_full["purezza_%"].max(), 5)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         )
-                    ], md=4),
+                    ], xs=12, md=4, className="mb-3"),
                     dbc.Col([
-                        html.Label("Profitto (€)", className="fw-bold"),
+                        html.Label("Profitto (€)", className="fw-bold", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
+                        }),
                         dcc.RangeSlider(
                             id="profitto-range",
                             min=df_full["profitto_eur"].min(),
@@ -324,12 +357,12 @@ def create_dashboard_tab(df, df_full):
                             marks={i: f"€{i/1000:.0f}k" for i in np.linspace(df_full["profitto_eur"].min(), df_full["profitto_eur"].max(), 5)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         )
-                    ], md=4),
+                    ], xs=12, md=4, className="mb-3"),
                 ])
             ])
         ], className="mb-4"),
 
-        # Indicatori chiave di prestazione con trend e variazioni
+        # Indicatori chiave di prestazione con trend e variazioni - Responsive
         dbc.Row([
             dbc.Col(create_kpi_card(
                 "📦 Produzione Media",
@@ -337,62 +370,76 @@ def create_dashboard_tab(df, df_full):
                 f"{kpi['trend_produzione']:+.1f}%",
                 "primary",
                 kpi['trend_produzione']
-            ), width=3, className="mb-3"),
+            ), xs=12, sm=6, md=3, className="mb-3"),
             dbc.Col(create_kpi_card(
                 "✨ Purezza Media",
                 f"{kpi['avg_purezza']:.2f}%",
                 f"{kpi['trend_purezza']:+.1f}%",
                 "success",
                 kpi['trend_purezza']
-            ), width=3, className="mb-3"),
+            ), xs=12, sm=6, md=3, className="mb-3"),
             dbc.Col(create_kpi_card(
                 "💰 Profitto Medio",
                 f"€ {kpi['avg_profitto']:,.0f}",
                 f"{kpi['trend_profitto']:+.1f}%",
                 "info",
                 kpi['trend_profitto']
-            ), width=3, className="mb-3"),
+            ), xs=12, sm=6, md=3, className="mb-3"),
             dbc.Col(create_kpi_card(
                 "📊 Margine Medio",
                 f"{kpi['avg_margine']:.2f}%",
                 f"{kpi['trend_margine']:+.1f}%",
                 "warning",
                 kpi['trend_margine']
-            ), width=3, className="mb-3"),
+            ), xs=12, sm=6, md=3, className="mb-3"),
         ], className="mb-4"),
 
-        # Distribuzioni Teoriche - Sezione 1: Gaussiane
-        html.H3("📊 Distribuzioni Gaussiane (Normali)", className="mt-4 mb-3 text-center", style={"borderBottom": "3px solid #636EFA", "paddingBottom": "10px"}),
+        # Distribuzioni Teoriche - Sezione 1: Gaussiane - Responsive
+        html.H3("📊 Distribuzioni Gaussiane (Normali)", className="mt-4 mb-3 text-center", style={
+            "borderBottom": "3px solid #636EFA", 
+            "paddingBottom": "10px",
+            "fontSize": "clamp(1.2rem, 4vw, 1.75rem)"
+        }),
         
         dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-produzione-gauss"), width=6),
-            dbc.Col(dcc.Graph(id="dist-purezza-gauss"), width=6),
+            dbc.Col(dcc.Graph(id="dist-produzione-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="dist-purezza-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
         ], className="mb-4"),
         
         dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-margine-gauss"), width=6),
-            dbc.Col(dcc.Graph(id="dist-costi-gauss"), width=6),
-        ], className="mb-4"),
-
-        # Distribuzioni Teoriche - Sezione 2: Log-Normali
-        html.H3("📈 Distribuzioni Log-Normali", className="mt-5 mb-3 text-center", style={"borderBottom": "3px solid #00CC96", "paddingBottom": "10px"}),
-        
-        dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-profitto-lognorm"), width=6),
-            dbc.Col(dcc.Graph(id="dist-prezzo-lognorm"), width=6),
+            dbc.Col(dcc.Graph(id="dist-margine-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="dist-costi-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
         ], className="mb-4"),
 
-        # Distribuzioni Teoriche - Sezione 3: Poisson
-        html.H3("⚠️ Distribuzione di Poisson (Eventi Rari)", className="mt-5 mb-3 text-center", style={"borderBottom": "3px solid #AB63FA", "paddingBottom": "10px"}),
+        # Distribuzioni Teoriche - Sezione 2: Log-Normali - Responsive
+        html.H3("📈 Distribuzioni Log-Normali", className="mt-5 mb-3 text-center", style={
+            "borderBottom": "3px solid #00CC96", 
+            "paddingBottom": "10px",
+            "fontSize": "clamp(1.2rem, 4vw, 1.75rem)"
+        }),
         
         dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-guasti-poisson"), width=12),
+            dbc.Col(dcc.Graph(id="dist-profitto-lognorm", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="dist-prezzo-lognorm", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
         ], className="mb-4"),
 
-        # Mappa di calore della matrice di correlazione
-        html.H4("🔗 Matrice di Correlazione", className="mt-4 mb-3"),
+        # Distribuzioni Teoriche - Sezione 3: Poisson - Responsive
+        html.H3("⚠️ Distribuzione di Poisson (Eventi Rari)", className="mt-5 mb-3 text-center", style={
+            "borderBottom": "3px solid #AB63FA", 
+            "paddingBottom": "10px",
+            "fontSize": "clamp(1.2rem, 4vw, 1.75rem)"
+        }),
+        
         dbc.Row([
-            dbc.Col(dcc.Graph(id="heatmap-correlazioni"), width=12),
+            dbc.Col(dcc.Graph(id="dist-guasti-poisson", config={'responsive': True}), xs=12, className="mb-3"),
+        ], className="mb-4"),
+
+        # Mappa di calore della matrice di correlazione - Responsive
+        html.H4("🔗 Matrice di Correlazione", className="mt-4 mb-3", style={
+            "fontSize": "clamp(1.1rem, 3.5vw, 1.5rem)"
+        }),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="heatmap-correlazioni", config={'responsive': True}), xs=12, className="mb-3"),
         ], className="mb-4"),
     ])
 
@@ -432,15 +479,21 @@ def create_about_tab():
 
 
 def create_whatif_tab(df):
-    """Tab Simulazione What-If"""
+    """Tab Simulazione What-If - Responsive"""
     return dbc.Container([
-        html.H2("🔮 Pannello Simulazione What-If", className="mt-4 mb-4"),
+        html.H2("🔮 Pannello Simulazione What-If", className="mt-4 mb-4", style={
+            "fontSize": "clamp(1.3rem, 4.5vw, 2rem)"
+        }),
         dbc.Card([
             dbc.CardBody([
-                html.P("Analizza scenari futuri modificando i parametri di produzione"),
+                html.P("Analizza scenari futuri modificando i parametri di produzione", style={
+                    "fontSize": "clamp(0.9rem, 2.5vw, 1rem)"
+                }),
                 dbc.Row([
                     dbc.Col([
-                        html.Label("Aumento Produzione (%):"),
+                        html.Label("Aumento Produzione (%):", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 0.95rem)"
+                        }),
                         dcc.Slider(
                             id="slider-prod",
                             min=-50, max=50, step=5,
@@ -448,9 +501,11 @@ def create_whatif_tab(df):
                             marks={i: f"{i}%" for i in range(-50, 51, 10)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         )
-                    ], md=4),
+                    ], xs=12, md=4, className="mb-3"),
                     dbc.Col([
-                        html.Label("Variazione Prezzo (€/kg):"),
+                        html.Label("Variazione Prezzo (€/kg):", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 0.95rem)"
+                        }),
                         dcc.Slider(
                             id="slider-prezzo",
                             min=-30, max=30, step=5,
@@ -458,9 +513,11 @@ def create_whatif_tab(df):
                             marks={i: f"€{i}" for i in range(-30, 31, 10)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         )
-                    ], md=4),
+                    ], xs=12, md=4, className="mb-3"),
                     dbc.Col([
-                        html.Label("Riduzione Costi (%):"),
+                        html.Label("Riduzione Costi (%):", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 0.95rem)"
+                        }),
                         dcc.Slider(
                             id="slider-costi",
                             min=-50, max=50, step=5,
@@ -468,33 +525,42 @@ def create_whatif_tab(df):
                             marks={i: f"{i}%" for i in range(-50, 51, 10)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         )
-                    ], md=4),
+                    ], xs=12, md=4, className="mb-3"),
                 ])
             ])
         ]),
         html.Hr(),
         dbc.Row([
-            dbc.Col(dcc.Graph(id="whatif-profitto"), width=6),
-            dbc.Col(dcc.Graph(id="whatif-margine"), width=6),
+            dbc.Col(dcc.Graph(id="whatif-profitto", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="whatif-margine", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
         ], className="mt-4"),
     ])
 
 
 def create_analysis_tab(df):
-    """Tab Analisi Statistica Avanzata"""
+    """Tab Analisi Statistica Avanzata - Responsive"""
     return dbc.Container([
-        html.H2("📈 Analisi Statistica Avanzata", className="mt-4 mb-4"),
+        html.H2("📈 Analisi Statistica Avanzata", className="mt-4 mb-4", style={
+            "fontSize": "clamp(1.3rem, 4.5vw, 2rem)"
+        }),
         
         dbc.Row([
-            dbc.Col(dcc.Graph(id="correlazione-matrix"), width=6),
-            dbc.Col(dcc.Graph(id="outliers-produzione"), width=6),
+            dbc.Col(dcc.Graph(id="correlazione-matrix", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="outliers-produzione", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
         ], className="mb-4"),
         
         dbc.Row([
             dbc.Col([
-                html.H5("Statistiche Descrittive"),
-                html.Pre(id="stats-description", style={"backgroundColor": "#f5f5f5", "padding": "15px"})
-            ], width=12),
+                html.H5("Statistiche Descrittive", style={
+                    "fontSize": "clamp(1rem, 3vw, 1.25rem)"
+                }),
+                html.Pre(id="stats-description", style={
+                    "backgroundColor": "#f5f5f5", 
+                    "padding": "15px",
+                    "fontSize": "clamp(0.7rem, 2vw, 0.875rem)",
+                    "overflowX": "auto"
+                })
+            ], xs=12),
         ]),
     ])
 
@@ -527,7 +593,7 @@ def create_source_tab():
 
 # Funzioni helper per creare grafici di distribuzione teorica
 def create_gaussian_distribution(df, column, title, color="#636EFA"):
-    """Crea istogramma con fit Gaussiano (Normale)"""
+    """Crea istogramma con fit Gaussiano (Normale) - Stile personalizzato"""
     fig = go.Figure()
     
     data = df[column].dropna().values
@@ -535,19 +601,23 @@ def create_gaussian_distribution(df, column, title, color="#636EFA"):
         fig.add_annotation(text="Dati insufficienti")
         return fig
     
-    # Istogramma empirico
+    # Calcola parametri
+    mu, sigma = data.mean(), data.std()
+    cv = (sigma / mu * 100) if mu != 0 else 0
+    
+    # Istogramma empirico in blu
     fig.add_trace(go.Histogram(
         x=data,
         name='Dati Empirici',
         histnorm='probability density',
-        marker_color=color,
-        opacity=0.6,
-        nbinsx=30
+        marker_color='#6E7FCC',  # Blu
+        opacity=0.7,
+        nbinsx=30,
+        showlegend=True
     ))
     
-    # Fit Gaussiano
+    # Fit Gaussiano in rosso
     try:
-        mu, sigma = data.mean(), data.std()
         x_range = np.linspace(data.min(), data.max(), 300)
         y_gaussian = stats.norm.pdf(x_range, mu, sigma)
         
@@ -556,33 +626,47 @@ def create_gaussian_distribution(df, column, title, color="#636EFA"):
             y=y_gaussian,
             mode='lines',
             name=f'Gauss(μ={mu:.2f}, σ={sigma:.2f})',
-            line=dict(color='red', width=3)
+            line=dict(color='#FF0000', width=3),  # Rosso
+            showlegend=True
         ))
-        
-        # Aggiungi statistiche
-        fig.add_annotation(
-            text=f"μ = {mu:.2f}<br>σ = {sigma:.2f}<br>CV = {(sigma/mu*100):.1f}%",
-            xref="paper", yref="paper",
-            x=0.98, y=0.98, showarrow=False,
-            bgcolor="rgba(0,0,0,0.5)",
-            font=dict(color="white", size=11),
-            align="right"
-        )
     except Exception as e:
         print(f"Errore Gaussian fit: {e}")
     
+    # Layout con legenda personalizzata
     fig.update_layout(
-        title=title,
+        title=dict(
+            text=title,
+            font=dict(size=16, color='white')
+        ),
         xaxis_title=column,
         yaxis_title='Densità di Probabilità',
         template='plotly_dark',
-        showlegend=True
+        paper_bgcolor='#1e1e1e',
+        plot_bgcolor='#2d2d2d',
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(0,0,0,0.7)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(size=11, color='white'),
+            title=dict(
+                text=f'μ = {mu:.2f}<br>σ = {sigma:.2f}<br>CV = {cv:.1f}%',
+                font=dict(size=12, color='white')
+            )
+        ),
+        font=dict(size=11, color='white'),
+        margin=dict(l=50, r=30, t=70, b=50),
+        autosize=True
     )
     return fig
 
 
 def create_lognormal_distribution(df, column, title, color="#00CC96"):
-    """Crea istogramma con fit Log-Normale"""
+    """Crea istogramma con fit Log-Normale - Stile personalizzato"""
     fig = go.Figure()
     
     data = df[column].dropna().values
@@ -592,25 +676,26 @@ def create_lognormal_distribution(df, column, title, color="#00CC96"):
         fig.add_annotation(text="Dati insufficienti")
         return fig
     
-    # Istogramma empirico
+    # Istogramma empirico in blu
     fig.add_trace(go.Histogram(
         x=data,
         name='Dati Empirici',
         histnorm='probability density',
-        marker_color=color,
-        opacity=0.6,
-        nbinsx=30
+        marker_color='#6E7FCC',  # Blu
+        opacity=0.7,
+        nbinsx=30,
+        showlegend=True
     ))
     
-    # Fit Log-Normale
+    # Fit Log-Normale in arancione
     try:
-        # Parametri della log-normale: s (shape), loc, scale
+        # Parametri della log-normale
         shape, loc, scale = stats.lognorm.fit(data, floc=0)
         
         x_range = np.linspace(data.min(), data.max(), 300)
         y_lognorm = stats.lognorm.pdf(x_range, shape, loc, scale)
         
-        # Calcola media e mediana della log-normale
+        # Calcola media e mediana
         mean_ln = np.exp(np.log(scale) + shape**2 / 2)
         median_ln = scale
         
@@ -619,33 +704,48 @@ def create_lognormal_distribution(df, column, title, color="#00CC96"):
             y=y_lognorm,
             mode='lines',
             name=f'Log-Normale(σ={shape:.2f})',
-            line=dict(color='orange', width=3)
+            line=dict(color='#FF8C00', width=3),  # Arancione scuro
+            showlegend=True
         ))
-        
-        # Aggiungi statistiche
-        fig.add_annotation(
-            text=f"Media = {mean_ln:.2f}<br>Mediana = {median_ln:.2f}<br>σ = {shape:.3f}",
-            xref="paper", yref="paper",
-            x=0.98, y=0.98, showarrow=False,
-            bgcolor="rgba(0,0,0,0.5)",
-            font=dict(color="white", size=11),
-            align="right"
-        )
     except Exception as e:
         print(f"Errore Log-Normal fit: {e}")
+        mean_ln, median_ln, shape = 0, 0, 0
     
+    # Layout con legenda personalizzata
     fig.update_layout(
-        title=title,
+        title=dict(
+            text=title,
+            font=dict(size=16, color='white')
+        ),
         xaxis_title=column,
         yaxis_title='Densità di Probabilità',
         template='plotly_dark',
-        showlegend=True
+        paper_bgcolor='#1e1e1e',
+        plot_bgcolor='#2d2d2d',
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(0,0,0,0.7)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(size=11, color='white'),
+            title=dict(
+                text=f'Media = {mean_ln:.2f}<br>Mediana = {median_ln:.2f}<br>σ = {shape:.3f}',
+                font=dict(size=12, color='white')
+            )
+        ),
+        font=dict(size=11, color='white'),
+        margin=dict(l=50, r=30, t=70, b=50),
+        autosize=True
     )
     return fig
 
 
 def create_poisson_distribution(df, column, title, color="#AB63FA"):
-    """Crea grafico PMF Poissoniano con curve multiple (eventi discreti)"""
+    """Crea grafico PMF Poissoniano con curve multiple - Stile personalizzato"""
     fig = go.Figure()
     
     data = df[column].dropna().values.astype(int)
@@ -656,21 +756,22 @@ def create_poisson_distribution(df, column, title, color="#AB63FA"):
     
     # Stima λ dai dati empirici
     lambda_est = data.mean()
+    variance = data.var()
     
-    # Definisci 3 valori di λ per confronto (basati sui dati)
+    # Definisci 3 valori di λ per confronto
     lambda_values = [
-        max(0.5, lambda_est * 0.5),  # λ basso
-        lambda_est,                   # λ stimato
-        lambda_est * 2.0              # λ alto
+        max(0.5, lambda_est * 0.5),
+        lambda_est,
+        lambda_est * 2.0
     ]
     
-    colors_poisson = ['#FFA500', '#AB63FA', '#19D3F3']  # arancione, viola, azzurro
+    colors_poisson = ['#FFA500', '#AB63FA', '#19D3F3']
     
     # Range x per le curve
     x_max = max(int(lambda_values[-1] * 2.5), max(data) + 5)
     x_range = np.arange(0, x_max + 1)
     
-    # Disegna le curve di Poisson per diversi λ
+    # Disegna le curve
     try:
         for i, lambda_val in enumerate(lambda_values):
             y_poisson = stats.poisson.pmf(x_range, lambda_val)
@@ -683,35 +784,39 @@ def create_poisson_distribution(df, column, title, color="#AB63FA"):
                 line=dict(color=colors_poisson[i], width=2.5),
                 marker=dict(size=7, symbol='circle')
             ))
-        
-        # Aggiungi statistiche
-        fig.add_annotation(
-            text=f"λ stimato = {lambda_est:.2f}<br>Var = {data.var():.2f}<br>Eventi totali = {len(data)}",
-            xref="paper", yref="paper",
-            x=0.02, y=0.98, showarrow=False,
-            bgcolor="rgba(0,0,0,0.7)",
-            font=dict(color="white", size=11),
-            align="left",
-            xanchor="left",
-            yanchor="top"
-        )
     except Exception as e:
         print(f"Errore Poisson fit: {e}")
     
+    # Layout
     fig.update_layout(
-        title=title,
+        title=dict(
+            text=title,
+            font=dict(size=16, color='white')
+        ),
         xaxis_title='k (numero di eventi)',
         yaxis_title='P(x = k)',
         template='plotly_dark',
+        paper_bgcolor='#1e1e1e',
+        plot_bgcolor='#2d2d2d',
         showlegend=True,
         legend=dict(
             x=0.98,
             y=0.98,
             xanchor='right',
             yanchor='top',
-            bgcolor='rgba(0,0,0,0.5)'
+            bgcolor='rgba(0,0,0,0.7)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(size=11, color='white'),
+            title=dict(
+                text=f'λ stim = {lambda_est:.2f}<br>Var = {variance:.2f}<br>Eventi = {len(data)}',
+                font=dict(size=12, color='white')
+            )
         ),
-        xaxis=dict(dtick=1)
+        xaxis=dict(dtick=1),
+        font=dict(size=11, color='white'),
+        margin=dict(l=50, r=30, t=70, b=50),
+        autosize=True
     )
     return fig
 
