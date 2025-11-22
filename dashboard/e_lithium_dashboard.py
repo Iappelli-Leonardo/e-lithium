@@ -4,37 +4,90 @@ import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import os
 import numpy as np
-from scipy import stats
+import subprocess
+import sys
 from datetime import datetime, timedelta
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State, ALL, MATCH
 from dash import Dash, html, dcc, callback
+from scipy import stats
+from scipy.stats import gaussian_kde
 
 
-# ==========================================================|
-# Dashboard interattiva E-Lithium S.p.A.                    |
-# Analisi delle prestazioni operative della miniera di litio|
-# ==========================================================|
+# Dashboard Interattiva E-Lithium S.p.A. - Versione 2.0
+# Sistema di monitoraggio e analisi dei dati di produzione
+# Visualizzazione real-time delle metriche aziendali
 
-# ---- Caricamento dati iniziale ----
-df = pd.read_csv("./data/e_lithium_data.csv")
-df["data"] = pd.to_datetime(df["data"])
+# Configurazione del percorso assoluto
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+csv_path = os.path.join(project_dir, "data", "e_lithium_data.csv")
+simulatore_path = os.path.join(project_dir, "simulatore", "e_lithium_simulatore.py")
 
-# ---- Inizializzazione app Dash ----
-app = Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
+# Avvia il simulatore per generare i dati freschi (solo una volta, non in debug reload)
+if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    print("[Dashboard] Avviamento del simulatore per generare i dati...")
+    try:
+        subprocess.run([sys.executable, simulatore_path], check=True, cwd=project_dir)
+        print("[Dashboard] Simulatore completato con successo!")
+    except Exception as e:
+        print(f"[Dashboard] Errore nell'avvio del simulatore: {str(e)}")
+
+# Funzione per caricare i dati in modo fresco da CSV
+def load_data():
+    df = pd.read_csv(csv_path)
+    df["data"] = pd.to_datetime(df["data"])
+    return df
+
+# Inizializzazione dell'applicazione interattiva con supporto mobile
+app = Dash(
+    __name__, 
+    external_stylesheets=[dbc.themes.SOLAR],
+    meta_tags=[
+        {"name": "viewport", "content": "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"}
+    ]
+)
 app.title = "E-Lithium S.p.A"
 app.config.suppress_callback_exceptions = True 
 
-navbar = dbc.NavbarSimple(
-    brand="E-Lithium S.p.A.",
-    brand_href="#",
+navbar = dbc.Navbar(
+    dbc.Container(
+        [
+            dbc.NavbarBrand(
+                html.Button(
+                    "E-Lithium S.p.A.",
+                    id="brand-button",
+                    style={
+                        "background": "none",
+                        "border": "none",
+                        "color": "white",
+                        "fontSize": "1.25rem",
+                        "cursor": "pointer",
+                        "fontWeight": "500"
+                    }
+                ),
+                href="#"
+            ),
+            html.Span(
+                "v1.0.3",
+                style={
+                    "color": "#6c757d",
+                    "fontSize": "0.9rem",
+                    "marginLeft": "auto",
+                    "alignSelf": "center"
+                }
+            ),
+        ],
+        fluid=True,
+        style={"display": "flex", "justifyContent": "space-between"}
+    ),
     color="dark",
     dark=True,
-    className="mb-4"
+    className="mb-4",
 )
 
-# ---- KPI sintetici ----
+
+# Funzioni di supporto per elaborazione dati e visualizzazione
 def calcola_kpi(df):
-    """Calcola KPI con trend e variazioni percentuali"""
+    """Calcolo dei KPI con analisi di trend nel tempo"""
     if len(df) < 2:
         return {
             "avg_profitto": 0, "trend_profitto": 0,
@@ -43,7 +96,6 @@ def calcola_kpi(df):
             "avg_margine": 0, "trend_margine": 0
         }
     
-    # Dividi i dati in due metà per calcolare il trend
     mid = len(df) // 2
     prima_meta = df.iloc[:mid]
     seconda_meta = df.iloc[mid:]
@@ -75,27 +127,293 @@ def calcola_kpi(df):
         "avg_margine": avg_margine, "trend_margine": trend_margine
     }
 
-kpi = calcola_kpi(df)
+
+def create_kpi_card(title, value, trend, color, trend_value):
+    """Creazione delle card KPI con indicatori visivi per trend e performance - Responsive Mobile"""
+    trend_color = "success" if trend_value >= 0 else "danger"
+    trend_icon = "↑" if trend_value >= 0 else "↓"
+    
+    # Descrizioni user-friendly
+    descriptions = {
+        "Produzione Media": "Quantità media di litio estratta ogni giorno",
+        "Purezza Media": "Qualità media del litio estratto (più alta è meglio)",
+        "Profitto Medio": "Guadagno medio giornaliero dopo i costi",
+        "Margine Medio": "Percentuale di guadagno su ogni euro di ricavi"
+    }
+    description = descriptions.get(title, "")
+    
+    return dbc.Card([
+        dbc.CardBody([
+            html.Div([
+                html.H6(title, className="mb-2 fw-bold", style={
+                    "color": "#ffffff", 
+                    "fontSize": "clamp(0.9rem, 2.5vw, 1.1rem)",  # Responsive font size
+                    "textAlign": "center", 
+                    "borderBottom": "2px solid rgba(255,255,255,0.3)", 
+                    "paddingBottom": "8px"
+                }),
+                html.H4(value, className="mb-2", style={
+                    "color": "#ffffff", 
+                    "fontWeight": "700", 
+                    "textAlign": "center",
+                    "fontSize": "clamp(1.2rem, 4vw, 1.5rem)"  # Responsive font size
+                }),
+                html.Small(description, className="text-muted d-block mb-2", style={
+                    "textAlign": "center",
+                    "fontSize": "clamp(0.7rem, 2vw, 0.85rem)"  # Responsive font size
+                }),
+                html.Div(trend, style={
+                    "color": "#ffffff", 
+                    "fontWeight": "600", 
+                    "fontSize": "clamp(0.8rem, 2.5vw, 0.9rem)",  # Responsive font size
+                    "textAlign": "center"
+                })
+            ], style={"width": "100%", "padding": "0.5rem"})
+        ], style={"padding": "0.75rem"})
+    ], color=color, inverse=True, className="h-100 mb-3")
 
 
-dcc.DatePickerRange(
-    id="filtro-date",
-    min_date_allowed=df["data"].min(),
-    max_date_allowed=df["data"].max(),
-    start_date=df["data"].min(),
-    end_date=df["data"].max()
-)
+def detect_outliers(series, method='iqr'):
+    """Identificazione di valori anomali utilizzando il metodo dell'intervallo interquartile"""
+    Q1 = series.quantile(0.25)
+    Q3 = series.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    return (series < lower_bound) | (series > upper_bound)
 
 
-# ---- Layout ----
+def genera_insights_automatici(df):
+    """Genera insights automatici in linguaggio semplice per utenti non tecnici"""
+    insights = []
+    
+    if len(df) < 2:
+        return [html.Li("Dati insufficienti per generare insights", className="text-muted")]
+    
+    # Analisi produzione
+    prod_media = df["litio_estratto_kg"].mean()
+    prod_std = df["litio_estratto_kg"].std()
+    prod_ultima_settimana = df.tail(7)["litio_estratto_kg"].mean()
+    
+    if prod_ultima_settimana > prod_media + prod_std:
+        insights.append(html.Li([
+            html.Span("✅ ", style={"color": "#28a745", "fontSize": "1.2rem"}),
+            html.Strong("Ottima produzione! "),
+            f"Nell'ultima settimana hai estratto {prod_ultima_settimana:.0f} kg/giorno, ben sopra la media di {prod_media:.0f} kg."
+        ], className="mb-2"))
+    elif prod_ultima_settimana < prod_media - prod_std:
+        insights.append(html.Li([
+            html.Span("⚠️ ", style={"color": "#ffc107", "fontSize": "1.2rem"}),
+            html.Strong("Attenzione alla produzione: "),
+            f"Nell'ultima settimana la produzione è scesa a {prod_ultima_settimana:.0f} kg/giorno, sotto la media di {prod_media:.0f} kg."
+        ], className="mb-2"))
+    
+    # Analisi purezza
+    purezza_media = df["purezza_%"].mean()
+    purezza_ultima = df.tail(7)["purezza_%"].mean()
+    
+    if purezza_ultima >= 98.5:
+        insights.append(html.Li([
+            html.Span("🌟 ", style={"color": "#28a745", "fontSize": "1.2rem"}),
+            html.Strong("Qualità eccellente! "),
+            f"La purezza media è al {purezza_ultima:.2f}%, perfetta per batterie premium."
+        ], className="mb-2"))
+    elif purezza_ultima < 97:
+        insights.append(html.Li([
+            html.Span("⚠️ ", style={"color": "#dc3545", "fontSize": "1.2rem"}),
+            html.Strong("Purezza sotto target: "),
+            f"La purezza attuale è {purezza_ultima:.2f}%. Considera di verificare il processo di raffinazione."
+        ], className="mb-2"))
+    
+    # Analisi profitti
+    profitto_medio = df["profitto_eur"].mean()
+    profitto_ultimo = df.tail(7)["profitto_eur"].mean()
+    variazione_profitto = ((profitto_ultimo - profitto_medio) / abs(profitto_medio) * 100) if profitto_medio != 0 else 0
+    
+    if variazione_profitto > 10:
+        insights.append(html.Li([
+            html.Span("📈 ", style={"color": "#28a745", "fontSize": "1.2rem"}),
+            html.Strong("Trend positivo! "),
+            f"I profitti sono cresciuti del {variazione_profitto:.1f}% rispetto alla media (€{profitto_ultimo:,.0f}/giorno)."
+        ], className="mb-2"))
+    elif variazione_profitto < -10:
+        insights.append(html.Li([
+            html.Span("📉 ", style={"color": "#dc3545", "fontSize": "1.2rem"}),
+            html.Strong("Calo profitti: "),
+            f"I profitti sono diminuiti del {abs(variazione_profitto):.1f}% rispetto alla media. Verifica i costi operativi."
+        ], className="mb-2"))
+    
+    # Analisi costi
+    costi_medio = df["costi_eur"].mean()
+    costi_ultimo = df.tail(7)["costi_eur"].mean()
+    
+    if costi_ultimo > costi_medio * 1.15:
+        insights.append(html.Li([
+            html.Span("💸 ", style={"color": "#ffc107", "fontSize": "1.2rem"}),
+            html.Strong("Aumento costi operativi: "),
+            f"I costi sono saliti a €{costi_ultimo:,.0f}/giorno (+{((costi_ultimo/costi_medio-1)*100):.1f}%)."
+        ], className="mb-2"))
+    
+    # Analisi guasti
+    guasti_totali = df.tail(30)["guasti"].sum()
+    if guasti_totali > 15:
+        insights.append(html.Li([
+            html.Span("🔧 ", style={"color": "#dc3545", "fontSize": "1.2rem"}),
+            html.Strong("Alert manutenzione: "),
+            f"Rilevati {int(guasti_totali)} guasti negli ultimi 30 giorni. Programma manutenzione preventiva."
+        ], className="mb-2"))
+    elif guasti_totali < 5:
+        insights.append(html.Li([
+            html.Span("✅ ", style={"color": "#28a745", "fontSize": "1.2rem"}),
+            html.Strong("Macchinari efficienti: "),
+            f"Solo {int(guasti_totali)} guasti negli ultimi 30 giorni. Gli impianti funzionano bene!"
+        ], className="mb-2"))
+    
+    if not insights:
+        insights.append(html.Li("📊 Le metriche sono nella norma. Continua il buon lavoro!", className="text-info mb-2"))
+    
+    return insights
+
+
+def genera_report_narrativo(df):
+    """Genera un report narrativo che racconta la storia dei dati"""
+    if len(df) < 30:
+        return "Dati insufficienti per generare un report completo."
+    
+    # Statistiche ultimo mese
+    ultimo_mese = df.tail(30)
+    
+    prod_media = ultimo_mese["litio_estratto_kg"].mean()
+    prod_totale = ultimo_mese["litio_estratto_kg"].sum()
+    purezza_media = ultimo_mese["purezza_%"].mean()
+    profitto_totale = ultimo_mese["profitto_eur"].sum()
+    profitto_medio = ultimo_mese["profitto_eur"].mean()
+    guasti_totali = ultimo_mese["guasti"].sum()
+    
+    # Confronto con periodo precedente
+    mese_precedente = df.iloc[-60:-30] if len(df) >= 60 else df.iloc[:-30]
+    
+    if len(mese_precedente) > 0:
+        var_prod = ((prod_media - mese_precedente["litio_estratto_kg"].mean()) / mese_precedente["litio_estratto_kg"].mean() * 100)
+        var_profitto = ((profitto_medio - mese_precedente["profitto_eur"].mean()) / abs(mese_precedente["profitto_eur"].mean()) * 100)
+    else:
+        var_prod = 0
+        var_profitto = 0
+    
+    # Costruzione narrativa
+    report = f"""
+    📊 **Situazione Ultimi 30 Giorni**
+    
+    L'azienda ha estratto un totale di **{prod_totale:,.0f} kg di litio** con una media giornaliera di **{prod_media:,.0f} kg**. 
+    Rispetto al mese precedente, la produzione è {"aumentata" if var_prod > 0 else "diminuita"} del **{abs(var_prod):.1f}%**.
+    
+    La purezza media del litio estratto si è attestata al **{purezza_media:.2f}%**, {"superando" if purezza_media >= 98 else "rimanendo sotto"} 
+    gli standard premium per batterie ad alta prestazione.
+    
+    💰 **Performance Finanziaria**
+    
+    Il profitto totale del periodo è stato di **€{profitto_totale:,.0f}** (media giornaliera: €{profitto_medio:,.0f}), 
+    con una variazione del **{var_profitto:+.1f}%** rispetto al mese precedente. 
+    {"Ottimo risultato che conferma la solidità operativa!" if var_profitto > 5 else "Si consiglia di monitorare attentamente i costi." if var_profitto < -5 else "Performance stabile nel periodo."}
+    
+    ⚙️ **Efficienza Operativa**
+    
+    Gli impianti hanno registrato **{int(guasti_totali)} guasti** nel mese, 
+    {"un numero elevato che richiede interventi di manutenzione" if guasti_totali > 15 else "un livello accettabile che indica buona manutenzione" if guasti_totali > 5 else "un numero molto basso che testimonia l'eccellente stato degli impianti"}.
+    """
+    
+    return report
+
+
+def get_status_indicator(value, thresholds):
+    """Ritorna indicatore a semaforo (colore + emoji) basato su soglie"""
+    if "ottimo" in thresholds and thresholds["ottimo"][0] <= value <= thresholds["ottimo"][1]:
+        return ("🟢", "success", "Ottimo")
+    elif "buono" in thresholds and thresholds["buono"][0] <= value <= thresholds["buono"][1]:
+        return ("🟡", "warning", "Buono")
+    else:
+        return ("🔴", "danger", "Critico")
+
+
+def create_kpi_card_with_semaphore(title, value, trend, color, trend_value, status_indicator):
+    """Card KPI con indicatore a semaforo e tooltip"""
+    emoji, badge_color, status_text = status_indicator
+    
+    descriptions = {
+        "Produzione Media": "Quantità media di litio estratta ogni giorno",
+        "Purezza Media": "Qualità media del litio estratto (più alta è meglio)",
+        "Profitto Medio": "Guadagno medio giornaliero dopo i costi",
+        "Margine Medio": "Percentuale di guadagno su ogni euro di ricavi"
+    }
+    description = descriptions.get(title, "")
+    
+    tooltips = {
+        "Produzione Media": "Target ottimale: 900-1100 kg/giorno. Sotto 800 kg richiede attenzione.",
+        "Purezza Media": "Target premium: >98%. Accettabile: 97-98%. Sotto 97% richiede intervento.",
+        "Profitto Medio": "Target: >€20,000/giorno. Monitorare se scende sotto €15,000.",
+        "Margine Medio": "Target ottimale: >30%. Buono: 20-30%. Sotto 20% rivedere strategie."
+    }
+    tooltip_text = tooltips.get(title, "")
+    
+    return dbc.Card([
+        dbc.CardBody([
+            html.Div([
+                html.Div([
+                    html.H6([
+                        title,
+                        html.Span(" ❓", id=f"tooltip-{title.replace(' ', '-')}", 
+                                 style={"cursor": "help", "fontSize": "0.9rem", "marginLeft": "5px"})
+                    ], className="mb-2 fw-bold", style={
+                        "color": "#ffffff", 
+                        "fontSize": "clamp(0.9rem, 2.5vw, 1.1rem)",
+                        "textAlign": "center", 
+                        "borderBottom": "2px solid rgba(255,255,255,0.3)", 
+                        "paddingBottom": "8px"
+                    }),
+                    dbc.Tooltip(tooltip_text, target=f"tooltip-{title.replace(' ', '-')}", 
+                               placement="top", style={"fontSize": "0.85rem"})
+                ]),
+                html.Div([
+                    html.Span(emoji, style={"fontSize": "1.5rem", "marginRight": "10px"}),
+                    dbc.Badge(status_text, color=badge_color, className="mb-2")
+                ], style={"textAlign": "center", "marginBottom": "10px"}),
+                html.H4(value, className="mb-2", style={
+                    "color": "#ffffff", 
+                    "fontWeight": "700", 
+                    "textAlign": "center",
+                    "fontSize": "clamp(1.2rem, 4vw, 1.5rem)"
+                }),
+                html.Small(description, className="d-block mb-2", style={
+                    "textAlign": "center",
+                    "fontSize": "clamp(0.7rem, 2vw, 0.85rem)",
+                    "color": "#ffffff"
+                }),
+                html.Div(trend, style={
+                    "color": "#ffffff", 
+                    "fontWeight": "600", 
+                    "fontSize": "clamp(0.8rem, 2.5vw, 0.9rem)",
+                    "textAlign": "center"
+                })
+            ], style={"width": "100%", "padding": "0.5rem"})
+        ], style={"padding": "0.75rem"})
+    ], color=color, inverse=True, className="h-100 mb-3")
+
+
+# Struttura principale dell'interfaccia utente - Responsive Mobile
 app.layout = dbc.Container([
     navbar,
     html.H1("Sistema di Monitoraggio", className="text-center my-4"),
 
     dcc.Tabs(
         id="tabs",
-        value="tab-dashboard",
+        value="tab-summary",
         children=[
+            dcc.Tab(
+                label="📋 Riepilogo Esecutivo",
+                value="tab-summary",
+                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
+                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
+            ),
             dcc.Tab(
                 label="📊 Dashboard Operativa",
                 value="tab-dashboard",
@@ -115,12 +433,6 @@ app.layout = dbc.Container([
                 selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
             ),
             dcc.Tab(
-                label="📈 Analisi Statistica",
-                value="tab-analysis",
-                style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
-                selected_style={'backgroundColor': '#4E5D6C', 'color': '#fff', 'border': '1px solid #4E5D6C'}
-            ),
-            dcc.Tab(
                 label="💻 Codice Sorgente", 
                 value="tab-source",
                 style={'backgroundColor': '#2B3E50', 'color': '#fff', 'border': '1px solid #4E5D6C'},
@@ -134,12 +446,15 @@ app.layout = dbc.Container([
         }
     ),
 
-    # Sezione Filtri
-    html.Div(id="filtri-container", style={"display": "none"}),
+    # Gestione dello stato dei filtri applicati
+    dcc.Store(id="date-picker", data={"start_date": None, "end_date": None}),
+    dcc.Store(id="purezza-slider", data=[0, 100]),
+    dcc.Store(id="profitto-slider", data=[0, 100000]),
+    dcc.Store(id="quick-filter-selection", data={"filter": "all"}),
 
     html.Div(id="tab-content"),
     
-    # Footer
+    # Sezione inferiore con informazioni aziendali
     html.Footer(
         dbc.Container([
             html.Hr(className="my-3"),
@@ -160,295 +475,1145 @@ app.layout = dbc.Container([
                     ], className="mb-0 small")
                 ])
             ], className="mb-2"),
-        ]), 
-        className="mt-4 bg-dark text-light py-3"
+        ], fluid=True), 
+        className="mt-5 bg-dark text-light py-3",
+        style={"clear": "both", "position": "relative", "width": "100%"}
     )
 ], fluid=True)
 
 
+# Gestione degli eventi e aggiornamento dinamico dei componenti
+@app.callback(
+    Output("tabs", "value"),
+    Input("brand-button", "n_clicks"),
+    prevent_initial_call=True
+)
+def redirect_to_dashboard(n_clicks):
+    """Reindirizza al dashboard quando clicchi sul brand"""
+    if n_clicks:
+        return "tab-dashboard"
+    return "tab-dashboard"
 
-# ---- CALLBACK per aggiornare automaticamente i dati ----
+
 @app.callback(
     Output("tab-content", "children"),
-    [
-        Input("tabs", "value"),
-        Input("date-picker", "start_date"),
-        Input("date-picker", "end_date"),
-        Input("purezza-slider", "value"),
-        Input("profitto-slider", "value")
-    ],
+    [Input("tabs", "value"),
+     Input("quick-filter-selection", "data")],
     prevent_initial_call=False
 )
-def render_tab_content(tab, start_date, end_date, purezza_range, profitto_range):
-    if tab == "tab-dashboard":
-        return html.Div([
-            dcc.Interval(id="aggiornamento", interval=10*1000, n_intervals=0),
-
-            html.Div(className="mt-4"),  # Additional top margin
-
-            dbc.Row([
-                dbc.Col(dbc.Card([
-                    dbc.CardHeader("Produzione media"),
-                    dbc.CardBody(html.H4(id="kpi-produzione"))
-                ], color="primary", inverse=True), width=3),
-
-                dbc.Col(dbc.Card([
-                    dbc.CardHeader("Purezza media"),
-                    dbc.CardBody(html.H4(id="kpi-purezza"))
-                ], color="success", inverse=True), width=3),
-
-                dbc.Col(dbc.Card([
-                    dbc.CardHeader("Profitto medio"),
-                    dbc.CardBody(html.H4(id="kpi-profitto"))
-                ], color="info", inverse=True), width=3),
-
-                dbc.Col(dbc.Card([
-                    dbc.CardHeader("Margine medio"),
-                    dbc.CardBody(html.H4(id="kpi-margine"))
-                ], color="warning", inverse=True), width=3),
-            ], className="mb-4"),
-
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="grafico-produzione"), width=6),
-                dbc.Col(dcc.Graph(id="grafico-profitto"), width=6),
-            ], className="mb-4"),
-
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="grafico-grade"), width=6),
-                dbc.Col(dcc.Graph(id="grafico-prezzo"), width=6),
-            ], className="mb-4"),
-
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="grafico-costi"), width=6),
-                dbc.Col(dcc.Graph(id="grafico-guasti"), width=6),
-            ], className="mb-4"),
-
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="grafico-purezza"), width=6),
-                dbc.Col(dcc.Graph(id="grafico-ambiente"), width=6),
-            ])
-        ])
-
+def render_tab_content(tab, filter_selection):
+    """Renderizza il contenuto del tab selezionato e gestisce i filtri del summary"""
+    df_full = load_data()
+    
+    # Se siamo nel tab summary, applica il filtro selezionato
+    if tab == "tab-summary":
+        df_filtered = df_full.copy()
+        active_filter = "all"
+        
+        if filter_selection and "filter" in filter_selection:
+            filter_type = filter_selection["filter"]
+            active_filter = filter_type
+            
+            if filter_type == "7d":
+                max_date = df_full["data"].max()
+                start_date = max_date - timedelta(days=7)
+                df_filtered = df_full[df_full["data"] >= start_date]
+            elif filter_type == "30d":
+                max_date = df_full["data"].max()
+                start_date = max_date - timedelta(days=30)
+                df_filtered = df_full[df_full["data"] >= start_date]
+            elif filter_type == "best":
+                # Filtra per migliori performance (profitto > media + 0.5*std)
+                media_profitto = df_full["profitto_eur"].mean()
+                std_profitto = df_full["profitto_eur"].std()
+                df_filtered = df_full[df_full["profitto_eur"] > (media_profitto + 0.5 * std_profitto)]
+            elif filter_type == "alerts":
+                # Filtra per criticità (profitto < media - 0.5*std o purezza < 97)
+                media_profitto = df_full["profitto_eur"].mean()
+                std_profitto = df_full["profitto_eur"].std()
+                df_filtered = df_full[(df_full["profitto_eur"] < (media_profitto - 0.5 * std_profitto)) | 
+                                      (df_full["purezza_%"] < 97)]
+        
+        return create_executive_summary_tab(df_filtered, active_filter)
+    elif tab == "tab-dashboard":
+        return create_dashboard_tab(df_full, df_full)
+    elif tab == "tab-about":
+        return create_about_tab()
+    elif tab == "tab-whatif":
+        return create_whatif_tab(df_full)
     elif tab == "tab-source":
-        return dbc.Container([
-            html.Div([
-                html.H2("Codice Sorgente", className="mt-4"),
-                html.P([
-                    "Esplora il codice sorgente di questa dashboard su GitHub ",
-                    html.A([
-                        html.I(className="fab fa-github me-2"),
-                        "Iappelli-Leonardo/e-lithium"
-                    ], 
-                    href="https://github.com/Iappelli-Leonardo/e-lithium",
-                    className="text-decoration-none",
-                    target="_blank")
-                ], className="lead"),
+        return create_source_tab()
+    
+    return html.Div("Tab non trovato")
+
+
+# Callback Pattern-Matching per gestire i click sui filtri rapidi
+@app.callback(
+    Output("quick-filter-selection", "data"),
+    Input({"type": "quick-filter", "index": ALL}, "n_clicks"),
+    prevent_initial_call=True
+)
+def update_filter_selection(n_clicks_list):
+    """Aggiorna lo Store quando viene cliccato un filtro rapido"""
+    from dash import ctx
+    
+    if not ctx.triggered or ctx.triggered[0]["value"] is None:
+        return {"filter": "all"}
+    
+    # Estrai l'index del bottone cliccato
+    triggered_id = ctx.triggered_id
+    if triggered_id and "index" in triggered_id:
+        filter_type = triggered_id["index"]
+        return {"filter": filter_type}
+    
+    return {"filter": "all"}
+
+
+def create_executive_summary_tab(df, active_filter="all"):
+    """Tab Executive Summary - Vista semplificata per management non tecnico"""
+    if len(df) < 2:
+        return html.Div("Dati insufficienti")
+    
+    kpi = calcola_kpi(df)
+    
+    # Calcola indicatori a semaforo
+    prod_indicator = get_status_indicator(kpi['avg_produzione'], {
+        "ottimo": (900, 1100), "buono": (800, 1200)
+    })
+    
+    purezza_indicator = get_status_indicator(kpi['avg_purezza'], {
+        "ottimo": (98, 100), "buono": (97, 98)
+    })
+    
+    profitto_indicator = get_status_indicator(kpi['avg_profitto'], {
+        "ottimo": (20000, float('inf')), "buono": (15000, 20000)
+    })
+    
+    margine_indicator = get_status_indicator(kpi['avg_margine'], {
+        "ottimo": (30, 100), "buono": (20, 30)
+    })
+    
+    return dbc.Container([
+        # Intestazione
+        html.Div([
+            html.H2("📋 Riepilogo Esecutivo", className="mb-2"),
+            html.P("Vista semplificata delle performance aziendali - Aggiornamento in tempo reale", 
+                   className="text-muted", style={"fontSize": "0.95rem"})
+        ], className="text-center mb-4"),
+        
+        # Filtri rapidi pre-configurati
+        dbc.Card([
+            dbc.CardBody([
+                html.H5("🔍 Filtri Rapidi", className="mb-3"),
                 dbc.Row([
                     dbc.Col([
-                        dbc.Card([
-                            dbc.CardHeader("File Principali"),
-                            dbc.CardBody([
-                                html.Ul([
-                                    html.Li([
-                                        html.A("e_lithium_dashboard.py", 
-                                              href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/dashboard/e_lithium_dashboard.py",
-                                              target="_blank")
-                                    ]),
-                                    html.Li([
-                                        html.A("e_lithium_simulatore.py",
-                                              href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/simulatore/e_lithium_simulatore.py",
-                                              target="_blank")
-                                    ])
-                                ])
-                            ])
-                        ], className="mb-4")
+                        dbc.Button("📅 Ultimi 7 giorni", id={"type": "quick-filter", "index": "7d"}, 
+                                  color="primary", outline=(active_filter != "7d"), className="w-100 mb-2")
+                    ], xs=12, md=3),
+                    dbc.Col([
+                        dbc.Button("📅 Ultimi 30 giorni", id={"type": "quick-filter", "index": "30d"}, 
+                                  color="primary", outline=(active_filter != "30d"), className="w-100 mb-2")
+                    ], xs=12, md=3),
+                    dbc.Col([
+                        dbc.Button("🌟 Migliori Performance", id={"type": "quick-filter", "index": "best"}, 
+                                  color="success", outline=(active_filter != "best"), className="w-100 mb-2")
+                    ], xs=12, md=3),
+                    dbc.Col([
+                        dbc.Button("⚠️ Alert Criticità", id={"type": "quick-filter", "index": "alerts"}, 
+                                  color="danger", outline=(active_filter != "alerts"), className="w-100 mb-2")
+                    ], xs=12, md=3),
+                ])
+            ])
+        ], className="mb-4"),
+        
+        # KPI Cards con semaforo
+        html.H4("📊 Indicatori Chiave di Performance", className="mb-3"),
+        dbc.Row([
+            dbc.Col(create_kpi_card_with_semaphore(
+                "Produzione Media",
+                f"{kpi['avg_produzione']:,.0f} kg/giorno",
+                f"{kpi['trend_produzione']:+.1f}%",
+                "primary",
+                kpi['trend_produzione'],
+                prod_indicator
+            ), xs=12, sm=6, md=3, className="mb-3"),
+            dbc.Col(create_kpi_card_with_semaphore(
+                "Purezza Media",
+                f"{kpi['avg_purezza']:.2f}%",
+                f"{kpi['trend_purezza']:+.1f}%",
+                "success",
+                kpi['trend_purezza'],
+                purezza_indicator
+            ), xs=12, sm=6, md=3, className="mb-3"),
+            dbc.Col(create_kpi_card_with_semaphore(
+                "Profitto Medio",
+                f"€ {kpi['avg_profitto']:,.0f}",
+                f"{kpi['trend_profitto']:+.1f}%",
+                "info",
+                kpi['trend_profitto'],
+                profitto_indicator
+            ), xs=12, sm=6, md=3, className="mb-3"),
+            dbc.Col(create_kpi_card_with_semaphore(
+                "Margine Medio",
+                f"{kpi['avg_margine']:.2f}%",
+                f"{kpi['trend_margine']:+.1f}%",
+                "warning",
+                kpi['trend_margine'],
+                margine_indicator
+            ), xs=12, sm=6, md=3, className="mb-3"),
+        ], className="mb-4"),
+        
+        # Insights automatici
+        dbc.Card([
+            dbc.CardHeader(html.H5("💡 Insights e Raccomandazioni", className="mb-0")),
+            dbc.CardBody([
+                html.Ul(genera_insights_automatici(df), className="mb-0", 
+                       style={"listStyle": "none", "paddingLeft": "0"})
+            ])
+        ], className="mb-4"),
+        
+        # Grafico principale trend profitti
+        html.H4("📈 Trend Profitti (Ultimi 30 Giorni)", className="mb-3"),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="summary-profit-trend", config={'responsive': True}), xs=12, className="mb-3"),
+        ]),
+        
+        # Report narrativo
+        dbc.Card([
+            dbc.CardHeader(html.H5("📄 Report Esecutivo", className="mb-0")),
+            dbc.CardBody([
+                dcc.Markdown(genera_report_narrativo(df), className="mb-0")
+            ])
+        ], className="mb-4"),
+    ])
+
+
+def create_dashboard_tab(df, df_full):
+    """Tab Dashboard principale con filtri e KPI dinamici"""
+    kpi = calcola_kpi(df)
+    
+    min_date = df_full["data"].min()
+    max_date = df_full["data"].max()
+    start_date = min_date
+    end_date = max_date
+    purezza_range = [df_full["purezza_%"].min(), df_full["purezza_%"].max()]
+    profitto_range = [df_full["profitto_eur"].min(), df_full["profitto_eur"].max()]
+    
+    # Converti le date in stringhe YYYY-MM-DD se sono Timestamps
+    if pd.api.types.is_datetime64_any_dtype(type(start_date)):
+        start_date = start_date.strftime("%Y-%m-%d")
+    if pd.api.types.is_datetime64_any_dtype(type(end_date)):
+        end_date = end_date.strftime("%Y-%m-%d")
+    
+    # Converti min/max per min_date_allowed e max_date_allowed
+    min_date_str = min_date.strftime("%Y-%m-%d")
+    max_date_str = max_date.strftime("%Y-%m-%d")
+    
+    return html.Div([
+        # Sezione di controllo per filtrare i dati per periodo e parametri - Responsive
+        dbc.Card([
+            dbc.CardBody([
+                html.H5("🔍 Filtri Interattivi", className="mb-3", style={
+                    "fontSize": "clamp(1rem, 3vw, 1.25rem)"
+                }),
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("Periodo:", className="fw-bold", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
+                        }),
+                        dcc.DatePickerRange(
+                            id="date-range",
+                            start_date=start_date,
+                            end_date=end_date,
+                            min_date_allowed=min_date_str,
+                            max_date_allowed=max_date_str,
+                            display_format="YYYY-MM-DD",
+                            style={"width": "100%"}
+                        )
+                    ], xs=12, md=4, className="mb-3"),
+                    dbc.Col([
+                        html.Label("Purezza (%)", className="fw-bold", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
+                        }),
+                        dcc.RangeSlider(
+                            id="purezza-range",
+                            min=df_full["purezza_%"].min(),
+                            max=df_full["purezza_%"].max(),
+                            value=purezza_range,
+                            marks={i: f"{i:.1f}" for i in np.linspace(df_full["purezza_%"].min(), df_full["purezza_%"].max(), 5)},
+                            tooltip={"placement": "bottom", "always_visible": True}
+                        )
+                    ], xs=12, md=4, className="mb-3"),
+                    dbc.Col([
+                        html.Label("Profitto (€)", className="fw-bold", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
+                        }),
+                        dcc.RangeSlider(
+                            id="profitto-range",
+                            min=df_full["profitto_eur"].min(),
+                            max=df_full["profitto_eur"].max(),
+                            value=profitto_range,
+                            marks={i: f"€{i/1000:.0f}k" for i in np.linspace(df_full["profitto_eur"].min(), df_full["profitto_eur"].max(), 5)},
+                            tooltip={"placement": "bottom", "always_visible": True}
+                        )
+                    ], xs=12, md=4, className="mb-3"),
+                ])
+            ])
+        ], className="mb-4"),
+
+        # Indicatori chiave di prestazione con trend e variazioni - Responsive
+        dbc.Row([
+            dbc.Col(create_kpi_card(
+                "📦 Produzione Media",
+                f"{kpi['avg_produzione']:,.0f} kg/giorno",
+                f"{kpi['trend_produzione']:+.1f}%",
+                "primary",
+                kpi['trend_produzione']
+            ), xs=12, sm=6, md=3, className="mb-3"),
+            dbc.Col(create_kpi_card(
+                "✨ Purezza Media",
+                f"{kpi['avg_purezza']:.2f}%",
+                f"{kpi['trend_purezza']:+.1f}%",
+                "success",
+                kpi['trend_purezza']
+            ), xs=12, sm=6, md=3, className="mb-3"),
+            dbc.Col(create_kpi_card(
+                "💰 Profitto Medio",
+                f"€ {kpi['avg_profitto']:,.0f}",
+                f"{kpi['trend_profitto']:+.1f}%",
+                "info",
+                kpi['trend_profitto']
+            ), xs=12, sm=6, md=3, className="mb-3"),
+            dbc.Col(create_kpi_card(
+                "📊 Margine Medio",
+                f"{kpi['avg_margine']:.2f}%",
+                f"{kpi['trend_margine']:+.1f}%",
+                "warning",
+                kpi['trend_margine']
+            ), xs=12, sm=6, md=3, className="mb-3"),
+        ], className="mb-4"),
+
+        # Distribuzioni Teoriche - Sezione 1: Gaussiane - Responsive
+        html.H3("📊 Distribuzioni Gaussiane (Normali)", className="mt-4 mb-3 text-center", style={
+            "borderBottom": "3px solid #636EFA", 
+            "paddingBottom": "10px",
+            "fontSize": "clamp(1.2rem, 4vw, 1.75rem)"
+        }),
+        
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="dist-produzione-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="dist-purezza-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+        ], className="mb-4"),
+        
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="dist-margine-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="dist-costi-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+        ], className="mb-4"),
+
+        # Distribuzioni Teoriche - Sezione 2: Log-Normali - Responsive
+        html.H3("📈 Distribuzioni Log-Normali", className="mt-5 mb-3 text-center", style={
+            "borderBottom": "3px solid #00CC96", 
+            "paddingBottom": "10px",
+            "fontSize": "clamp(1.2rem, 4vw, 1.75rem)"
+        }),
+        
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="dist-profitto-lognorm", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+            dbc.Col(dcc.Graph(id="dist-prezzo-lognorm", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
+        ], className="mb-4"),
+
+        # Distribuzioni Teoriche - Sezione 3: Poisson - Responsive
+        html.H3("⚠️ Distribuzione di Poisson (Eventi Rari)", className="mt-5 mb-3 text-center", style={
+            "borderBottom": "3px solid #AB63FA", 
+            "paddingBottom": "10px",
+            "fontSize": "clamp(1.2rem, 4vw, 1.75rem)"
+        }),
+        
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="dist-guasti-poisson", config={'responsive': True}), xs=12, className="mb-3"),
+        ], className="mb-4"),
+
+        # Mappa di calore della matrice di correlazione - Responsive
+        html.H4("🔗 Matrice di Correlazione", className="mt-4 mb-3", style={
+            "fontSize": "clamp(1.1rem, 3.5vw, 1.5rem)"
+        }),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="heatmap-correlazioni", config={'responsive': True}), xs=12, className="mb-3"),
+        ], className="mb-4"),
+    ])
+
+
+def create_about_tab():
+    """Tab Info Aziendali"""
+    return dbc.Container([
+        html.H2("Chi è E-Lithium S.p.A.", className="mt-4"),
+        html.P("""
+            E-Lithium S.p.A. è una società mineraria italiana specializzata 
+            nell'estrazione e raffinazione di litio ad alta purezza, destinato 
+            alla produzione di batterie per veicoli elettrici e sistemi di 
+            accumulo energetico di nuova generazione.
+        """),
+        html.H4("🌍 Mercato e Clienti"),
+        html.P("""
+            L'azienda rifornisce i principali produttori europei di celle agli ioni di litio,
+            con partnership strategiche nel settore automobilistico, motociclistico e
+            dell'elettronica di consumo.
+        """),
+        html.H4("⚙️ Processo Produttivo"),
+        html.Ul([
+            html.Li("Estrazione del minerale di spodumene dalle miniere sarde"),
+            html.Li("Frantumazione e separazione meccanica del minerale grezzo"),
+            html.Li("Purificazione chimica fino al 99,9% di purezza del litio"),
+            html.Li("Controllo qualità e stoccaggio per la distribuzione ai clienti"),
+        ]),
+        html.H4("🏢 Dati Aziendali"),
+        html.Ul([
+            html.Li("Sede: Roma (Italia)"),
+            html.Li("Dipendenti: 250"),
+            html.Li("Capacità produttiva: 1.000 kg/giorno di litio raffinato"),
+            html.Li("Fatturato annuo: €18 milioni"),
+        ]),
+        html.P("Ultimo aggiornamento: Novembre 2025", className="text-muted fst-italic")
+    ])
+
+
+def create_whatif_tab(df):
+    """Tab Simulazione What-If - Responsive"""
+    # Prepara i dati per il filtro temporale
+    df['data'] = pd.to_datetime(df['data'])
+    df_sorted = df.sort_values('data')
+    min_date = df_sorted['data'].min()
+    max_date = df_sorted['data'].max()
+    
+    # Crea una lista di mesi unici (uno ogni 30 giorni circa per avere ~12 marker)
+    total_days = (max_date - min_date).days
+    num_markers = min(13, max(2, total_days // 30 + 1))  # Max 13 marker (inizio + 12 mesi)
+    
+    month_marks = {}
+    for i in range(num_markers):
+        date = min_date + pd.DateOffset(days=i * (total_days / (num_markers - 1)))
+        month_marks[i] = date.strftime('%b %y')
+    
+    return dbc.Container([
+        html.H2("🔮 Pannello Simulazione What-If", className="mt-4 mb-4", style={
+            "fontSize": "clamp(1.3rem, 4.5vw, 2rem)"
+        }),
+        
+        # Filtro temporale
+        dbc.Card([
+            dbc.CardBody([
+                html.H5("📅 Periodo Dati da Analizzare", className="mb-3"),
+                html.P("Seleziona il range temporale dei dati storici da utilizzare per la simulazione:", 
+                       className="text-muted small"),
+                dcc.RangeSlider(
+                    id="whatif-date-range",
+                    min=0,
+                    max=num_markers - 1,
+                    value=[0, num_markers - 1],
+                    marks=month_marks,
+                    step=1,
+                    tooltip={"placement": "bottom", "always_visible": False},
+                    allowCross=False
+                ),
+                html.Div(id="whatif-date-info", className="mt-3 text-center text-info")
+            ])
+        ], className="mb-4"),
+        
+        # Parametri di simulazione
+        dbc.Card([
+            dbc.CardBody([
+                html.H5("⚙️ Parametri di Simulazione", className="mb-3"),
+                html.P("Modifica i parametri per analizzare scenari futuri", style={
+                    "fontSize": "clamp(0.9rem, 2.5vw, 1rem)"
+                }),
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("Aumento Produzione (%):", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 0.95rem)"
+                        }),
+                        dcc.Slider(
+                            id="slider-prod",
+                            min=-50, max=50, step=5,
+                            value=0,
+                            marks={i: f"{i}%" for i in range(-50, 51, 10)},
+                            tooltip={"placement": "bottom", "always_visible": True}
+                        )
+                    ], xs=12, md=4, className="mb-3"),
+                    dbc.Col([
+                        html.Label("Variazione Prezzo (€/kg):", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 0.95rem)"
+                        }),
+                        dcc.Slider(
+                            id="slider-prezzo",
+                            min=-30, max=30, step=5,
+                            value=0,
+                            marks={i: f"€{i}" for i in range(-30, 31, 10)},
+                            tooltip={"placement": "bottom", "always_visible": True}
+                        )
+                    ], xs=12, md=4, className="mb-3"),
+                    dbc.Col([
+                        html.Label("Riduzione Costi (%):", style={
+                            "fontSize": "clamp(0.85rem, 2.5vw, 0.95rem)"
+                        }),
+                        dcc.Slider(
+                            id="slider-costi",
+                            min=-50, max=50, step=5,
+                            value=0,
+                            marks={i: f"{i}%" for i in range(-50, 51, 10)},
+                            tooltip={"placement": "bottom", "always_visible": True}
+                        )
+                    ], xs=12, md=4, className="mb-3"),
+                ])
+            ])
+        ]),
+        
+        html.Hr(),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="whatif-profitto", config={'responsive': True}), xs=12, lg=6, className="mb-4"),
+            dbc.Col(dcc.Graph(id="whatif-margine", config={'responsive': True}), xs=12, lg=6, className="mb-4"),
+        ], className="mt-4 mb-5", style={"paddingBottom": "100px"}),
+        
+        # Spaziatura per evitare sovrapposizione con il footer
+        html.Div(style={"height": "200px"})
+    ], className="mb-5", style={"paddingBottom": "150px"})
+
+
+def create_source_tab():
+    """Tab Codice Sorgente"""
+    return dbc.Container([
+        html.H2("💻 Codice Sorgente e Tecnologie", className="mt-4 mb-4"),
+        
+        # Sezione GitHub
+        html.P([
+            "Esplora il codice sorgente di questa dashboard su GitHub ",
+            html.A([
+                html.I(className="fab fa-github me-2"),
+                "Iappelli-Leonardo/e-lithium"
+            ], 
+            href="https://github.com/Iappelli-Leonardo/e-lithium",
+            className="text-decoration-none",
+            target="_blank")
+        ], className="lead mb-4"),
+        
+        # Stack Tecnologico
+        dbc.Card([
+            dbc.CardHeader(html.H5("🛠️ Stack Tecnologico", className="mb-0")),
+            dbc.CardBody([
+                html.H6("Linguaggio di Programmazione", className="text-primary mt-3"),
+                html.Ul([
+                    html.Li([html.Strong("Python " + sys.version.split()[0]), " - Linguaggio principale per logica applicativa, analisi dati e backend"])
+                ]),
+                
+                html.H6("Framework & Librerie Principali", className="text-primary mt-3"),
+                html.Ul([
+                    html.Li([html.Strong("Dash"), " - Framework web interattivo per applicazioni data-driven"]),
+                    html.Li([html.Strong("Dash Bootstrap Components (DBC)"), " - Componenti UI responsive con tema SOLAR"]),
+                    html.Li([html.Strong("Plotly"), " - Libreria per grafici interattivi e visualizzazioni avanzate"]),
+                    html.Li([html.Strong("Pandas"), " - Manipolazione e analisi dati strutturati (DataFrames)"]),
+                    html.Li([html.Strong("NumPy"), " - Calcoli numerici e operazioni su array multidimensionali"]),
+                    html.Li([html.Strong("SciPy"), " - Funzioni statistiche avanzate e fit di distribuzioni teoriche"])
+                ]),
+                
+                html.H6("Formattazione & Presentazione", className="text-primary mt-3"),
+                html.Ul([
+                    html.Li([html.Strong("HTML5"), " - Struttura markup per componenti web"]),
+                    html.Li([html.Strong("CSS3 / Bootstrap 5"), " - Styling responsive e layout mobile-first"]),
+                    html.Li([html.Strong("Markdown"), " - Formattazione testi nei report narrativi"])
+                ]),
+                
+                html.H6("Analisi Statistica", className="text-primary mt-3"),
+                html.P([
+                    "Il sistema implementa distribuzioni teoriche per l'analisi predittiva: ",
+                    html.Strong("Gaussiana"), " (produzione, purezza), ",
+                    html.Strong("Log-Normale"), " (profitti, prezzi), ",
+                    html.Strong("Poisson"), " (eventi rari/guasti)."
+                ]),
+                
+                html.H6("Hosting & Deployment", className="text-primary mt-3"),
+                html.P([
+                    "L'applicazione è hostata su ", html.Strong("Render"), " (piano gratuito), una piattaforma cloud ",
+                    "che offre hosting automatizzato per applicazioni web. Render si occupa di:"
+                ]),
+                html.Ul([
+                    html.Li([html.Strong("Build"), " automatico dal repository GitHub"]),
+                    html.Li([html.Strong("Deploy"), " continuo ad ogni push su branch main/dev"]),
+                    html.Li([html.Strong("Restart"), " automatico del server in caso di crash"]),
+                    html.Li([html.Strong("Dominio"), " pubblico con connessione sicura HTTPS (certificato SSL gratuito)"]),
+                    html.Li([html.Strong("Esecuzione"), " con Gunicorn come WSGI server per performance ottimali"])
+                ]),
+                html.P([
+                    html.Small([
+                        "⚠️ ", html.Strong("Nota:"), " ", html.Em("Il piano gratuito di Render mette in sleep l'applicazione dopo 15 minuti di inattività. "),
+                        "Il primo accesso dopo il periodo di inattività può richiedere 30-60 secondi per il riavvio."
+                    ], className="text-muted")
+                ])
+            ])
+        ], className="mb-4"),
+        
+        # File Principali
+        dbc.Card([
+            dbc.CardHeader(html.H5("📁 File Principali del Progetto", className="mb-0")),
+            dbc.CardBody([
+                html.Ul([
+                    html.Li([
+                        html.A("e_lithium_dashboard.py", 
+                               href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/dashboard/e_lithium_dashboard.py", 
+                               target="_blank"),
+                        " - Dashboard principale (~1500 righe)"
+                    ]),
+                    html.Li([
+                        html.A("e_lithium_simulatore.py", 
+                               href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/simulatore/e_lithium_simulatore.py", 
+                               target="_blank"),
+                        " - Simulatore dati di produzione"
+                    ]),
+                    html.Li([
+                        html.A("requirements.txt", 
+                               href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/requirements.txt", 
+                               target="_blank"),
+                        " - Dipendenze Python"
                     ])
                 ])
             ])
+        ], className="mb-4"),
+        
+        # Architettura
+        dbc.Card([
+            dbc.CardHeader(html.H5("🏗️ Architettura Applicativa", className="mb-0")),
+            dbc.CardBody([
+                html.P([
+                    "L'applicazione segue un'architettura ", html.Strong("MVC (Model-View-Controller)"), 
+                    " adattata per applicazioni web interattive:"
+                ]),
+                html.Ul([
+                    html.Li([html.Strong("Model"), " - Gestione dati CSV, calcolo KPI, analisi statistiche"]),
+                    html.Li([html.Strong("View"), " - Componenti Dash/HTML per UI responsive"]),
+                    html.Li([html.Strong("Controller"), " - Callbacks Pattern-Matching per interattività real-time"])
+                ]),
+                html.P([
+                    "Sistema di ", html.Strong("callback reactivi"), " che aggiornano automaticamente i componenti ",
+                    "in base alle azioni dell'utente (filtri, tab, simulazioni)."
+                ])
+            ])
         ])
-    
-    elif tab == "tab-about":
-        return dbc.Container([
-            html.H2("Chi è E-Lithium S.p.A.", className="mt-4"),
-            html.P("""
-                E-Lithium S.p.A. è una società mineraria italiana specializzata 
-                nell’estrazione e raffinazione di litio ad alta purezza, destinato 
-                alla produzione di batterie per veicoli elettrici e sistemi di 
-                accumulo energetico di nuova generazione.
-            """),
-            html.H4("🌍 Mercato e Clienti"),
-            html.P("""
-                L’azienda rifornisce i principali produttori europei di celle agli ioni di litio,
-                con partnership strategiche nel settore automobilistico, motociclistico e
-                dell’elettronica di consumo.
-            """),
-            html.H4("⚙️ Processo Produttivo"),
-            html.Ul([
-                html.Li("Estrazione del minerale di spodumene dalle miniere sarde"),
-                html.Li("Frantumazione e separazione meccanica del minerale grezzo"),
-                html.Li("Purificazione chimica fino al 99,9% di purezza del litio"),
-                html.Li("Controllo qualità e stoccaggio per la distribuzione ai clienti"),
-            ]),
-            html.H4("🏢 Dati Aziendali"),
-            html.Ul([
-                html.Li("Sede: Roma (Italia)"),
-                html.Li("Dipendenti: 250"),
-                html.Li("Capacità produttiva: 1.000 kg/giorno di litio raffinato"),
-                html.Li("Fatturato annuo: €18 milioni"),
-            ]),
-            html.P("Ultimo aggiornamento: Novembre 2025", className="text-muted fst-italic")
-        ])
+    ])
 
+
+# Funzioni helper per creare grafici di distribuzione teorica
+def create_gaussian_distribution(df, column, title, color="#636EFA"):
+    """Crea istogramma con fit Gaussiano (Normale) - Stile personalizzato"""
+    fig = go.Figure()
+    
+    data = df[column].dropna().values
+    if len(data) < 2:
+        fig.add_annotation(text="Dati insufficienti")
+        return fig
+    
+    # Calcola parametri
+    mu, sigma = data.mean(), data.std()
+    cv = (sigma / mu * 100) if mu != 0 else 0
+    
+    # Istogramma empirico in blu
+    fig.add_trace(go.Histogram(
+        x=data,
+        name='Dati Empirici',
+        histnorm='probability density',
+        marker_color='#6E7FCC',  # Blu
+        opacity=0.7,
+        nbinsx=30,
+        showlegend=True
+    ))
+    
+    # Fit Gaussiano in rosso
+    try:
+        x_range = np.linspace(data.min(), data.max(), 300)
+        y_gaussian = stats.norm.pdf(x_range, mu, sigma)
+        
+        fig.add_trace(go.Scatter(
+            x=x_range,
+            y=y_gaussian,
+            mode='lines',
+            name=f'Gauss(μ={mu:.2f}, σ={sigma:.2f})',
+            line=dict(color='#FF0000', width=3),  # Rosso
+            showlegend=True
+        ))
+    except Exception as e:
+        print(f"Errore Gaussian fit: {e}")
+    
+    # Layout con legenda personalizzata
+    fig.update_layout(
+        title=dict(
+            text=title,
+            font=dict(size=16, color='white')
+        ),
+        xaxis_title=column,
+        yaxis_title='Densità di Probabilità',
+        template='plotly_dark',
+        paper_bgcolor='#1e1e1e',
+        plot_bgcolor='#2d2d2d',
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(0,0,0,0.7)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(size=11, color='white'),
+            title=dict(
+                text=f'μ = {mu:.2f}<br>σ = {sigma:.2f}<br>CV = {cv:.1f}%',
+                font=dict(size=12, color='white')
+            )
+        ),
+        font=dict(size=11, color='white'),
+        margin=dict(l=50, r=30, t=70, b=50),
+        autosize=True
+    )
+    return fig
+
+
+def create_lognormal_distribution(df, column, title, color="#00CC96"):
+    """Crea istogramma con fit Log-Normale - Stile personalizzato"""
+    fig = go.Figure()
+    
+    data = df[column].dropna().values
+    data = data[data > 0]  # Log-normale richiede valori positivi
+    
+    if len(data) < 2:
+        fig.add_annotation(text="Dati insufficienti")
+        return fig
+    
+    # Istogramma empirico in blu
+    fig.add_trace(go.Histogram(
+        x=data,
+        name='Dati Empirici',
+        histnorm='probability density',
+        marker_color='#6E7FCC',  # Blu
+        opacity=0.7,
+        nbinsx=30,
+        showlegend=True
+    ))
+    
+    # Fit Log-Normale in arancione
+    try:
+        # Parametri della log-normale
+        shape, loc, scale = stats.lognorm.fit(data, floc=0)
+        
+        x_range = np.linspace(data.min(), data.max(), 300)
+        y_lognorm = stats.lognorm.pdf(x_range, shape, loc, scale)
+        
+        # Calcola media e mediana
+        mean_ln = np.exp(np.log(scale) + shape**2 / 2)
+        median_ln = scale
+        
+        fig.add_trace(go.Scatter(
+            x=x_range,
+            y=y_lognorm,
+            mode='lines',
+            name=f'Log-Normale(σ={shape:.2f})',
+            line=dict(color='#FF8C00', width=3),  # Arancione scuro
+            showlegend=True
+        ))
+    except Exception as e:
+        print(f"Errore Log-Normal fit: {e}")
+        mean_ln, median_ln, shape = 0, 0, 0
+    
+    # Layout con legenda personalizzata
+    fig.update_layout(
+        title=dict(
+            text=title,
+            font=dict(size=16, color='white')
+        ),
+        xaxis_title=column,
+        yaxis_title='Densità di Probabilità',
+        template='plotly_dark',
+        paper_bgcolor='#1e1e1e',
+        plot_bgcolor='#2d2d2d',
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(0,0,0,0.7)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(size=11, color='white'),
+            title=dict(
+                text=f'Media = {mean_ln:.2f}<br>Mediana = {median_ln:.2f}<br>σ = {shape:.3f}',
+                font=dict(size=12, color='white')
+            )
+        ),
+        font=dict(size=11, color='white'),
+        margin=dict(l=50, r=30, t=70, b=50),
+        autosize=True
+    )
+    return fig
+
+
+def create_poisson_distribution(df, column, title, color="#AB63FA"):
+    """Crea grafico PMF Poissoniano con curve multiple - Stile personalizzato"""
+    fig = go.Figure()
+    
+    data = df[column].dropna().values.astype(int)
+    
+    if len(data) < 2:
+        fig.add_annotation(text="Dati insufficienti")
+        return fig
+    
+    # Stima λ dai dati empirici
+    lambda_est = data.mean()
+    variance = data.var()
+    
+    # Definisci 3 valori di λ per confronto
+    lambda_values = [
+        max(0.5, lambda_est * 0.5),
+        lambda_est,
+        lambda_est * 2.0
+    ]
+    
+    colors_poisson = ['#FFA500', '#AB63FA', '#19D3F3']
+    
+    # Range x per le curve
+    x_max = max(int(lambda_values[-1] * 2.5), max(data) + 5)
+    x_range = np.arange(0, x_max + 1)
+    
+    # Disegna le curve
+    try:
+        for i, lambda_val in enumerate(lambda_values):
+            y_poisson = stats.poisson.pmf(x_range, lambda_val)
+            
+            fig.add_trace(go.Scatter(
+                x=x_range,
+                y=y_poisson,
+                mode='lines+markers',
+                name=f'λ = {lambda_val:.1f}',
+                line=dict(color=colors_poisson[i], width=2.5),
+                marker=dict(size=7, symbol='circle')
+            ))
+    except Exception as e:
+        print(f"Errore Poisson fit: {e}")
+    
+    # Layout
+    fig.update_layout(
+        title=dict(
+            text=title,
+            font=dict(size=16, color='white')
+        ),
+        xaxis_title='k (numero di eventi)',
+        yaxis_title='P(x = k)',
+        template='plotly_dark',
+        paper_bgcolor='#1e1e1e',
+        plot_bgcolor='#2d2d2d',
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(0,0,0,0.7)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(size=11, color='white'),
+            title=dict(
+                text=f'λ stim = {lambda_est:.2f}<br>Var = {variance:.2f}<br>Eventi = {len(data)}',
+                font=dict(size=12, color='white')
+            )
+        ),
+        xaxis=dict(dtick=1),
+        font=dict(size=11, color='white'),
+        margin=dict(l=50, r=30, t=70, b=50),
+        autosize=True
+    )
+    return fig
+
+
+
+
+
+# Aggiornamento automatico dei grafici nel dashboard principale
 @app.callback(
     [
-        Output("grafico-produzione", "figure"),
-        Output("grafico-profitto", "figure"),
-        Output("grafico-purezza", "figure"),
-        Output("grafico-ambiente", "figure"),
-        Output("kpi-produzione", "children"),
-        Output("kpi-purezza", "children"),
-        Output("kpi-profitto", "children"),
-        Output("kpi-margine", "children"),
-        Output("grafico-grade", "figure"),
-        Output("grafico-prezzo", "figure"),
-        Output("grafico-costi", "figure"),
-        Output("grafico-guasti", "figure"),
+        Output("dist-produzione-gauss", "figure"),
+        Output("dist-purezza-gauss", "figure"),
+        Output("dist-margine-gauss", "figure"),
+        Output("dist-costi-gauss", "figure"),
+        Output("dist-profitto-lognorm", "figure"),
+        Output("dist-prezzo-lognorm", "figure"),
+        Output("dist-guasti-poisson", "figure"),
+        Output("heatmap-correlazioni", "figure"),
     ],
-    Input("aggiornamento", "n_intervals")
+    [
+        Input("date-range", "start_date"),
+        Input("date-range", "end_date"),
+        Input("purezza-range", "value"),
+        Input("profitto-range", "value"),
+    ],
+    prevent_initial_call=False
 )
-
-
-def aggiorna_dati(n):
-    df = pd.read_csv("./data/e_lithium_data.csv")
-    df["data"] = pd.to_datetime(df["data"])
-
-    kpi = {
-        "avg_profitto": df["profitto_eur"].mean(),
-        "avg_purezza": df["purezza_%"].mean(),
-        "avg_produzione": df["litio_estratto_kg"].mean()
-    }
-
-    #------nuova---
-
-    fig_grade = px.histogram(
-    df, x="purezza_%", nbins=30, histnorm="probability density",
-    title="Distribuzione Gaussiana del Tenore (%)"
-    )
-    fig_grade.add_vline(x=df["purezza_%"].mean(), line_dash="dash")
-
-
-
-    oggi = datetime.now()
-    un_anno_fa = oggi - timedelta(days=365)
-    df_ultimo_anno = df[df['data'] >= un_anno_fa]
-
-
-    fig_profitto = px.histogram(
-    df_ultimo_anno, 
-    x="profitto_eur", 
-    nbins=30, 
-    histnorm=None,  # None = conta i casi, non densità
-    title="Distribuzione del Profitto (€) nell'ultimo anno"
-    )
-
-
-    fig_purezza = px.histogram(
-    df, x="purezza_%", nbins=30, histnorm="probability density",
-    title="Distribuzione della Purezza (%)"
-    )
-    fig_purezza.add_vline(x=df["purezza_%"].mean(), line_dash="dash")
-
-    fig_prezzo = px.histogram(
-    df[df["prezzo_litio_eur_kg"] > 0],
-    x="prezzo_litio_eur_kg",
-    nbins=30,
-    histnorm="probability density",
-    title="Distribuzione Lognormale del Prezzo del Litio (€/kg)"
-    )
-
-    fig_prezzo.update_xaxes(type="linear")
-    fig_prezzo.update_layout(template="plotly_dark")
-
-    fig_costi = px.histogram(
-    df, x="costi_eur", nbins=30, histnorm="probability density",
-    title="Distribuzione dei Costi Operativi (Gauss)"
-    )
-    fig_costi.add_vline(x=df["costi_eur"].mean(), line_dash="dash")
-
-    fig_guasti = px.histogram(
-    df,
-    x="guasti",
-    nbins=int(df["guasti"].max()) + 1,  # <- qui
-    title="Distribuzione di Poisson dei Guasti"
-    )
-
-    fig_produzione = px.histogram(
-    df, x="litio_estratto_kg", nbins=30, histnorm="probability density",
-    title="Distribuzione Gaussiana della Produzione giornaliera di litio (kg)"
-    )
-    fig_produzione.add_vline(x=df["litio_estratto_kg"].mean(), line_dash="dash")
-    fig_produzione.update_layout(template="plotly_dark")
-
-    import plotly.graph_objects as go
-
-    fig_ambiente = go.Figure()
-
-    for col, colore in zip(["temperatura_C", "umidita_%", "CO2_ppm"], ["red", "blue", "green"]):
-        fig_ambiente.add_trace(
-            go.Histogram(
-                x=df[col],
-                name=col,
-                nbinsx=30,
-                histnorm="probability density",
-                marker_color=colore,
-                opacity=0.7
-            )
+def update_dashboard_graphs(start_date, end_date, purezza_range, profitto_range):
+    try:
+        df = load_data()
+        
+        # Applico i filtri
+        if start_date:
+            df = df[df["data"] >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df["data"] <= pd.to_datetime(end_date)]
+        
+        if isinstance(purezza_range, (list, tuple)) and len(purezza_range) == 2:
+            df = df[(df["purezza_%"] >= purezza_range[0]) & (df["purezza_%"] <= purezza_range[1])]
+        
+        if isinstance(profitto_range, (list, tuple)) and len(profitto_range) == 2:
+            df = df[(df["profitto_eur"] >= profitto_range[0]) & (df["profitto_eur"] <= profitto_range[1])]
+        
+        # Controllo della disponibilità e validità dei dati
+        if len(df) < 2:
+            empty_fig = go.Figure()
+            empty_fig.add_annotation(text="Dati insufficienti per l'analisi")
+            empty_fig.update_layout(template="plotly_dark")
+            return [empty_fig] * 8
+        
+        # === DISTRIBUZIONI GAUSSIANE ===
+        fig_prod_gauss = create_gaussian_distribution(
+            df, "litio_estratto_kg", 
+            "📦 Produzione Media Litio Estratto - Distribuzione Gaussiana",
+            "#636EFA"
         )
+        
+        fig_pure_gauss = create_gaussian_distribution(
+            df, "purezza_%",
+            "✨ Tenore Medio del Minerale (Purezza %) - Distribuzione Gaussiana",
+            "#19D3F3"
+        )
+        
+        fig_marg_gauss = create_gaussian_distribution(
+            df, "margine_%",
+            "📊 Margine Medio (%) - Distribuzione Gaussiana",
+            "#FFA15A"
+        )
+        
+        fig_costi_gauss = create_gaussian_distribution(
+            df, "costi_eur",
+            "💸 Costi Medi Operativi (€) - Distribuzione Gaussiana",
+            "#FF6692"
+        )
+        
+        # === DISTRIBUZIONI LOG-NORMALI ===
+        fig_prof_lognorm = create_lognormal_distribution(
+            df, "profitto_eur",
+            "💰 Profitto Medio (€) - Distribuzione Log-Normale",
+            "#00CC96"
+        )
+        
+        fig_prezzo_lognorm = create_lognormal_distribution(
+            df, "prezzo_litio_eur_kg",
+            "💵 Prezzo Medio del Litio (€/kg) - Distribuzione Log-Normale",
+            "#FECB52"
+        )
+        
+        # === DISTRIBUZIONE DI POISSON ===
+        fig_guasti_poisson = create_poisson_distribution(
+            df, "guasti",
+            "⚠️ Guasti Macchinari (Eventi Rari) - Distribuzione di Poisson",
+            "#AB63FA"
+        )
+        
+        # === HEATMAP CORRELAZIONI ===
+        corr_cols = ["litio_estratto_kg", "purezza_%", "profitto_eur", "margine_%", "costi_eur", "prezzo_litio_eur_kg", "guasti"]
+        corr_matrix = df[corr_cols].corr()
+        fig_heatmap = go.Figure(data=go.Heatmap(
+            z=corr_matrix.values,
+            x=corr_cols,
+            y=corr_cols,
+            colorscale="RdBu",
+            zmid=0,
+            text=corr_matrix.values.round(2),
+            texttemplate="%{text}",
+            textfont={"size": 10},
+            colorbar=dict(title="Correlazione")
+        ))
+        fig_heatmap.update_layout(
+            title="🔗 Matrice di Correlazione tra Metriche",
+            template="plotly_dark",
+            height=600
+        )
+        
+        return (fig_prod_gauss, fig_pure_gauss, fig_marg_gauss, fig_costi_gauss,
+                fig_prof_lognorm, fig_prezzo_lognorm,
+                fig_guasti_poisson,
+                fig_heatmap)
+    
+    except Exception as e:
+        print(f"Errore nei grafici dashboard: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        empty_fig = go.Figure()
+        empty_fig.add_annotation(text=f"Errore: {str(e)}")
+        empty_fig.update_layout(template="plotly_dark")
+        return [empty_fig] * 8
 
-    fig_ambiente.update_layout(
-        barmode='overlay',
-        title="Distribuzione Gaussiana delle condizioni ambientali",
-        template="plotly_dark"
-    )
 
-
-
-    #------nuova---
-
-    # fig_produzione = px.line(df, x="data", y="litio_estratto_kg", title="Produzione giornaliera di litio (kg)", markers=True)
-    # fig_profitto = px.line(df, x="data", y="profitto_eur", title="Andamento del profitto (€)", markers=True)
-    # fig_purezza = px.line(df, x="data", y="purezza_%", title="Purezza media del litio (%)", markers=True)
-    # fig_ambiente = px.line(df, x="data", y=["temperatura_C", "umidita_%", "CO2_ppm"], title="Condizioni ambientali nella miniera")
-    # fig_grade = px.line(df, x="data", y="purezza_%", title="Tenore medio del minerale (Grade)", markers=True)
-    # fig_prezzo = px.line(df, x="data", y="prezzo_litio_eur_kg", title="Prezzo medio del litio (€/kg)", markers=True)
-    # fig_costi = px.line(df, x="data", y="costi_eur", title="Costi operativi giornalieri (€/giorno)", markers=True)
-    # fig_guasti = px.line(df, x="data", y="guasti", title="Guasti macchinari (eventi/giorno)", markers=True)
-
-    for f in [fig_produzione, fig_profitto, fig_purezza, fig_ambiente, fig_grade, fig_prezzo, fig_costi, fig_guasti]:
-        f.update_layout(template="plotly_dark", hovermode="x unified")
-
-    return (
-    fig_produzione,
-    fig_profitto,
-    fig_purezza,
-    fig_ambiente,
-
-    f"{kpi['avg_produzione']:,.0f} kg/giorno",
-    f"{kpi['avg_purezza']:.2f} %",
-    f"€ {kpi['avg_profitto']:,.0f}",
-    f"{df['margine_%'].mean():.2f} %",
-
-    fig_grade,
-    fig_prezzo,
-    fig_costi,
-    fig_guasti,
+# Callback per mostrare info sul periodo selezionato nel What-If
+@app.callback(
+    Output("whatif-date-info", "children"),
+    Input("whatif-date-range", "value"),
+    prevent_initial_call=False
 )
+def update_whatif_date_info(date_range_indices):
+    """Mostra informazioni sul periodo selezionato"""
+    try:
+        if not date_range_indices or len(date_range_indices) != 2:
+            return "📅 Seleziona un periodo per iniziare"
+        
+        df = load_data()
+        df['data'] = pd.to_datetime(df['data'])
+        df_sorted = df.sort_values('data')
+        min_date = df_sorted['data'].min()
+        max_date = df_sorted['data'].max()
+        total_days = (max_date - min_date).days
+        
+        start_idx, end_idx = date_range_indices
+        
+        # Calcola le date effettive basate sugli indici
+        num_markers = 13  # Stesso valore usato in create_whatif_tab
+        start_date = min_date + pd.DateOffset(days=int(start_idx * (total_days / (num_markers - 1))))
+        end_date = min_date + pd.DateOffset(days=int(end_idx * (total_days / (num_markers - 1))))
+        
+        # Filtra i dati per il periodo selezionato
+        df_filtered = df[(df['data'] >= start_date) & (df['data'] <= end_date)]
+        num_days = len(df_filtered)
+        
+        return f"📅 Periodo: {start_date.strftime('%d %b %Y')} - {end_date.strftime('%d %b %Y')} | {num_days} giorni di dati"
+    except Exception as e:
+        return f"⚠️ Errore nel calcolo del periodo: {str(e)}"
 
 
+# Simulazione di scenari alternativi con variabili controllabili
+@app.callback(
+    [Output("whatif-profitto", "figure"), Output("whatif-margine", "figure")],
+    [Input("slider-prod", "value"), 
+     Input("slider-prezzo", "value"), 
+     Input("slider-costi", "value"),
+     Input("whatif-date-range", "value")],
+    prevent_initial_call=False
+)
+def update_whatif(prod_change, prezzo_change, costi_change, date_range_indices):
+    try:
+        df = load_data()
+        df['data'] = pd.to_datetime(df['data'])
+        
+        if len(df) == 0:
+            empty_fig = go.Figure()
+            empty_fig.add_annotation(text="Nessun dato disponibile")
+            empty_fig.update_layout(template="plotly_dark")
+            return empty_fig, empty_fig
+        
+        # Applica filtro temporale
+        if date_range_indices and len(date_range_indices) == 2:
+            df_sorted = df.sort_values('data')
+            min_date = df_sorted['data'].min()
+            max_date = df_sorted['data'].max()
+            total_days = (max_date - min_date).days
+            
+            start_idx, end_idx = date_range_indices
+            num_markers = 13
+            
+            start_date = min_date + pd.DateOffset(days=int(start_idx * (total_days / (num_markers - 1))))
+            end_date = min_date + pd.DateOffset(days=int(end_idx * (total_days / (num_markers - 1))))
+            
+            df = df[(df['data'] >= start_date) & (df['data'] <= end_date)]
+        
+        if len(df) == 0:
+            empty_fig = go.Figure()
+            empty_fig.add_annotation(text="Nessun dato nel periodo selezionato", font=dict(size=16, color="white"))
+            empty_fig.update_layout(template="plotly_dark", paper_bgcolor='#1e1e1e', plot_bgcolor='#2d2d2d')
+            return empty_fig, empty_fig
+        
+        # Simulazione dell'impatto delle variazioni sui risultati
+        df_scenario = df.copy()
+        df_scenario["litio_estratto_kg"] = df_scenario["litio_estratto_kg"] * (1 + prod_change/100)
+        df_scenario["prezzo_litio_eur_kg"] = df_scenario["prezzo_litio_eur_kg"] + prezzo_change
+        df_scenario["costi_eur"] = df_scenario["costi_eur"] * (1 - costi_change/100)
+        df_scenario["ricavi_eur"] = df_scenario["litio_estratto_kg"] * df_scenario["prezzo_litio_eur_kg"]
+        df_scenario["profitto_eur"] = df_scenario["ricavi_eur"] - df_scenario["costi_eur"]
+        df_scenario["margine_%"] = (df_scenario["profitto_eur"] / df_scenario["ricavi_eur"].replace(0, 1)) * 100
+        
+        fig_prof = px.line(df_scenario, x="data", y="profitto_eur",
+                           title=f"Profitto Scenario (+Prod: {prod_change}%, €Prezzo: {prezzo_change:+d}, -Costi: {costi_change}%)")
+        fig_marg = px.line(df_scenario, x="data", y="margine_%",
+                           title="Margine Scenario (%)")
+        
+        for fig in [fig_prof, fig_marg]:
+            fig.update_layout(
+                template="plotly_dark",
+                paper_bgcolor='#1e1e1e',
+                plot_bgcolor='#2d2d2d',
+                font=dict(color='white')
+            )
+        
+        return fig_prof, fig_marg
+    except Exception as e:
+        print(f"Errore What-If: {str(e)}")
+        empty_fig = go.Figure()
+        empty_fig.add_annotation(text=f"Errore: {str(e)}")
+        return empty_fig, empty_fig
 
 
+# Callback per il grafico trend profitti nel summary tab
+@app.callback(
+    Output("summary-profit-trend", "figure"),
+    Input("tabs", "value"),
+    prevent_initial_call=False
+)
+def update_summary_profit_trend(tab):
+    if tab != "tab-summary":
+        return go.Figure()
+    
+    try:
+        df = load_data()
+        df_last_30 = df.tail(30)
+        
+        fig = go.Figure()
+        
+        # Linea profitti
+        fig.add_trace(go.Scatter(
+            x=df_last_30["data"],
+            y=df_last_30["profitto_eur"],
+            mode='lines+markers',
+            name='Profitto Giornaliero',
+            line=dict(color='#00CC96', width=3),
+            marker=dict(size=6),
+            fill='tozeroy',
+            fillcolor='rgba(0, 204, 150, 0.2)'
+        ))
+        
+        # Linea media
+        media_profitto = df_last_30["profitto_eur"].mean()
+        fig.add_hline(
+            y=media_profitto,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"Media: €{media_profitto:,.0f}",
+            annotation_position="right"
+        )
+        
+        fig.update_layout(
+            title="Andamento Profitti Giornalieri",
+            xaxis_title="Data",
+            yaxis_title="Profitto (€)",
+            template="plotly_dark",
+            hovermode='x unified',
+            height=400
+        )
+        
+        return fig
+    except Exception as e:
+        print(f"Errore summary profit trend: {e}")
+        return go.Figure()
 
 
-# ---- Avvio server ----
+# Avvio del server dell'applicazione
 if __name__ == "__main__":
     app.run(debug=True)

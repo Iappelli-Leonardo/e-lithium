@@ -22,3 +22,8 @@ data/*.csv
 # Ignora file world per appunti 
 *.docx
 
+# Ignora app creazioe qrcode sito in locale
+dashboard/prova.py
+
+# Ignora immagini QR code generate 
+e_lithium_qrcode.png
