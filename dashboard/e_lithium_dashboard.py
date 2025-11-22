@@ -1612,16 +1612,19 @@ def update_summary_profit_trend(tab):
             line=dict(color='#00CC96', width=3),
             marker=dict(size=6),
             fill='tozeroy',
-            fillcolor='rgba(0, 204, 150, 0.2)'
+            fillcolor='rgba(0, 204, 150, 0.2)',
+            hovertemplate='€%{customdata:.1f}k<extra></extra>',
+            customdata=df_last_30["profitto_eur"] / 1000
         ))
         
         # Linea media
         media_profitto = df_last_30["profitto_eur"].mean()
+        media_profitto_k = media_profitto / 1000
         fig.add_hline(
             y=media_profitto,
             line_dash="dash",
             line_color="red",
-            annotation_text=f"Media: €{media_profitto:,.0f}",
+            annotation_text=f"Media: €{media_profitto_k:.1f}k",
             annotation_position="right"
         )
         
@@ -1631,7 +1634,24 @@ def update_summary_profit_trend(tab):
             yaxis_title="Profitto (€)",
             template="plotly_dark",
             hovermode='x unified',
-            height=400
+            height=400,
+            margin=dict(l=60, r=120, t=60, b=60),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+        # Formatta asse Y in migliaia (k)
+        fig.update_yaxes(
+            tickformat='.1f',
+            ticksuffix='k',
+            tickvals=[i*1000 for i in range(0, int(df_last_30["profitto_eur"].max()/1000)+10, 5)],
+            ticktext=[f'{i}' for i in range(0, int(df_last_30["profitto_eur"].max()/1000)+10, 5)]
         )
         
         return fig
