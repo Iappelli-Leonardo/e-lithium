@@ -508,9 +508,11 @@ def render_tab_content(tab, filter_selection):
     # Se siamo nel tab summary, applica il filtro selezionato
     if tab == "tab-summary":
         df_filtered = df_full.copy()
+        active_filter = "all"
         
         if filter_selection and "filter" in filter_selection:
             filter_type = filter_selection["filter"]
+            active_filter = filter_type
             
             if filter_type == "7d":
                 max_date = df_full["data"].max()
@@ -532,7 +534,7 @@ def render_tab_content(tab, filter_selection):
                 df_filtered = df_full[(df_full["profitto_eur"] < (media_profitto - 0.5 * std_profitto)) | 
                                       (df_full["purezza_%"] < 97)]
         
-        return create_executive_summary_tab(df_filtered)
+        return create_executive_summary_tab(df_filtered, active_filter)
     elif tab == "tab-dashboard":
         return create_dashboard_tab(df_full, df_full)
     elif tab == "tab-about":
@@ -567,7 +569,7 @@ def update_filter_selection(n_clicks_list):
     return {"filter": "all"}
 
 
-def create_executive_summary_tab(df):
+def create_executive_summary_tab(df, active_filter="all"):
     """Tab Executive Summary - Vista semplificata per management non tecnico"""
     if len(df) < 2:
         return html.Div("Dati insufficienti")
@@ -606,19 +608,19 @@ def create_executive_summary_tab(df):
                 dbc.Row([
                     dbc.Col([
                         dbc.Button("📅 Ultimi 7 giorni", id={"type": "quick-filter", "index": "7d"}, 
-                                  color="primary", outline=True, className="w-100 mb-2")
+                                  color="primary", outline=(active_filter != "7d"), className="w-100 mb-2")
                     ], xs=12, md=3),
                     dbc.Col([
                         dbc.Button("📅 Ultimi 30 giorni", id={"type": "quick-filter", "index": "30d"}, 
-                                  color="primary", outline=True, className="w-100 mb-2")
+                                  color="primary", outline=(active_filter != "30d"), className="w-100 mb-2")
                     ], xs=12, md=3),
                     dbc.Col([
                         dbc.Button("🌟 Migliori Performance", id={"type": "quick-filter", "index": "best"}, 
-                                  color="success", outline=True, className="w-100 mb-2")
+                                  color="success", outline=(active_filter != "best"), className="w-100 mb-2")
                     ], xs=12, md=3),
                     dbc.Col([
                         dbc.Button("⚠️ Alert Criticità", id={"type": "quick-filter", "index": "alerts"}, 
-                                  color="danger", outline=True, className="w-100 mb-2")
+                                  color="danger", outline=(active_filter != "alerts"), className="w-100 mb-2")
                     ], xs=12, md=3),
                 ])
             ])
@@ -979,7 +981,9 @@ def create_whatif_tab(df):
 def create_source_tab():
     """Tab Codice Sorgente"""
     return dbc.Container([
-        html.H2("Codice Sorgente", className="mt-4"),
+        html.H2("💻 Codice Sorgente e Tecnologie", className="mt-4 mb-4"),
+        
+        # Sezione GitHub
         html.P([
             "Esplora il codice sorgente di questa dashboard su GitHub ",
             html.A([
@@ -989,13 +993,106 @@ def create_source_tab():
             href="https://github.com/Iappelli-Leonardo/e-lithium",
             className="text-decoration-none",
             target="_blank")
-        ], className="lead"),
+        ], className="lead mb-4"),
+        
+        # Stack Tecnologico
         dbc.Card([
-            dbc.CardHeader("File Principali"),
+            dbc.CardHeader(html.H5("🛠️ Stack Tecnologico", className="mb-0")),
+            dbc.CardBody([
+                html.H6("Linguaggio di Programmazione", className="text-primary mt-3"),
+                html.Ul([
+                    html.Li([html.Strong("Python " + sys.version.split()[0]), " - Linguaggio principale per logica applicativa, analisi dati e backend"])
+                ]),
+                
+                html.H6("Framework & Librerie Principali", className="text-primary mt-3"),
+                html.Ul([
+                    html.Li([html.Strong("Dash"), " - Framework web interattivo per applicazioni data-driven"]),
+                    html.Li([html.Strong("Dash Bootstrap Components (DBC)"), " - Componenti UI responsive con tema SOLAR"]),
+                    html.Li([html.Strong("Plotly"), " - Libreria per grafici interattivi e visualizzazioni avanzate"]),
+                    html.Li([html.Strong("Pandas"), " - Manipolazione e analisi dati strutturati (DataFrames)"]),
+                    html.Li([html.Strong("NumPy"), " - Calcoli numerici e operazioni su array multidimensionali"]),
+                    html.Li([html.Strong("SciPy"), " - Funzioni statistiche avanzate e fit di distribuzioni teoriche"])
+                ]),
+                
+                html.H6("Formattazione & Presentazione", className="text-primary mt-3"),
+                html.Ul([
+                    html.Li([html.Strong("HTML5"), " - Struttura markup per componenti web"]),
+                    html.Li([html.Strong("CSS3 / Bootstrap 5"), " - Styling responsive e layout mobile-first"]),
+                    html.Li([html.Strong("Markdown"), " - Formattazione testi nei report narrativi"])
+                ]),
+                
+                html.H6("Analisi Statistica", className="text-primary mt-3"),
+                html.P([
+                    "Il sistema implementa distribuzioni teoriche per l'analisi predittiva: ",
+                    html.Strong("Gaussiana"), " (produzione, purezza), ",
+                    html.Strong("Log-Normale"), " (profitti, prezzi), ",
+                    html.Strong("Poisson"), " (eventi rari/guasti)."
+                ]),
+                
+                html.H6("Hosting & Deployment", className="text-primary mt-3"),
+                html.P([
+                    "L'applicazione è hostata su ", html.Strong("Render"), " (piano gratuito), una piattaforma cloud ",
+                    "che offre hosting automatizzato per applicazioni web. Render si occupa di:"
+                ]),
+                html.Ul([
+                    html.Li([html.Strong("Build"), " automatico dal repository GitHub"]),
+                    html.Li([html.Strong("Deploy"), " continuo ad ogni push su branch main/dev"]),
+                    html.Li([html.Strong("Restart"), " automatico del server in caso di crash"]),
+                    html.Li([html.Strong("Dominio"), " pubblico con connessione sicura HTTPS (certificato SSL gratuito)"]),
+                    html.Li([html.Strong("Esecuzione"), " con Gunicorn come WSGI server per performance ottimali"])
+                ]),
+                html.P([
+                    html.Small([
+                        "⚠️ ", html.Strong("Nota:"), " ", html.Em("Il piano gratuito di Render mette in sleep l'applicazione dopo 15 minuti di inattività. "),
+                        "Il primo accesso dopo il periodo di inattività può richiedere 30-60 secondi per il riavvio."
+                    ], className="text-muted")
+                ])
+            ])
+        ], className="mb-4"),
+        
+        # File Principali
+        dbc.Card([
+            dbc.CardHeader(html.H5("📁 File Principali del Progetto", className="mb-0")),
             dbc.CardBody([
                 html.Ul([
-                    html.Li(html.A("e_lithium_dashboard.py", href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/dashboard/e_lithium_dashboard.py", target="_blank")),
-                    html.Li(html.A("e_lithium_simulatore.py", href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/simulatore/e_lithium_simulatore.py", target="_blank"))
+                    html.Li([
+                        html.A("e_lithium_dashboard.py", 
+                               href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/dashboard/e_lithium_dashboard.py", 
+                               target="_blank"),
+                        " - Dashboard principale (~1500 righe)"
+                    ]),
+                    html.Li([
+                        html.A("e_lithium_simulatore.py", 
+                               href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/simulatore/e_lithium_simulatore.py", 
+                               target="_blank"),
+                        " - Simulatore dati di produzione"
+                    ]),
+                    html.Li([
+                        html.A("requirements.txt", 
+                               href="https://github.com/Iappelli-Leonardo/e-lithium/blob/main/requirements.txt", 
+                               target="_blank"),
+                        " - Dipendenze Python"
+                    ])
+                ])
+            ])
+        ], className="mb-4"),
+        
+        # Architettura
+        dbc.Card([
+            dbc.CardHeader(html.H5("🏗️ Architettura Applicativa", className="mb-0")),
+            dbc.CardBody([
+                html.P([
+                    "L'applicazione segue un'architettura ", html.Strong("MVC (Model-View-Controller)"), 
+                    " adattata per applicazioni web interattive:"
+                ]),
+                html.Ul([
+                    html.Li([html.Strong("Model"), " - Gestione dati CSV, calcolo KPI, analisi statistiche"]),
+                    html.Li([html.Strong("View"), " - Componenti Dash/HTML per UI responsive"]),
+                    html.Li([html.Strong("Controller"), " - Callbacks Pattern-Matching per interattività real-time"])
+                ]),
+                html.P([
+                    "Sistema di ", html.Strong("callback reactivi"), " che aggiornano automaticamente i componenti ",
+                    "in base alle azioni dell'utente (filtri, tab, simulazioni)."
                 ])
             ])
         ])
