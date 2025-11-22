@@ -277,48 +277,74 @@ def genera_insights_automatici(df):
 
 def genera_report_narrativo(df):
     """Genera un report narrativo che racconta la storia dei dati"""
-    if len(df) < 30:
+    if len(df) < 2:
         return "Dati insufficienti per generare un report completo."
     
-    # Statistiche ultimo mese
-    ultimo_mese = df.tail(30)
+    # Adatta il periodo in base ai dati disponibili
+    num_giorni = len(df)
+    periodo_desc = f"{num_giorni} Giorni" if num_giorni < 30 else "Ultimi 30 Giorni"
     
-    prod_media = ultimo_mese["litio_estratto_kg"].mean()
-    prod_totale = ultimo_mese["litio_estratto_kg"].sum()
-    purezza_media = ultimo_mese["purezza_%"].mean()
-    profitto_totale = ultimo_mese["profitto_eur"].sum()
-    profitto_medio = ultimo_mese["profitto_eur"].mean()
-    guasti_totali = ultimo_mese["guasti"].sum()
+    # Usa tutti i dati disponibili se meno di 30 giorni, altrimenti ultimi 30
+    periodo_analisi = df if num_giorni <= 30 else df.tail(30)
+    giorni_analisi = len(periodo_analisi)
     
-    # Confronto con periodo precedente
-    mese_precedente = df.iloc[-60:-30] if len(df) >= 60 else df.iloc[:-30]
+    prod_media = periodo_analisi["litio_estratto_kg"].mean()
+    prod_totale = periodo_analisi["litio_estratto_kg"].sum()
+    purezza_media = periodo_analisi["purezza_%"].mean()
+    profitto_totale = periodo_analisi["profitto_eur"].sum()
+    profitto_medio = periodo_analisi["profitto_eur"].mean()
+    guasti_totali = periodo_analisi["guasti"].sum()
     
-    if len(mese_precedente) > 0:
-        var_prod = ((prod_media - mese_precedente["litio_estratto_kg"].mean()) / mese_precedente["litio_estratto_kg"].mean() * 100)
-        var_profitto = ((profitto_medio - mese_precedente["profitto_eur"].mean()) / abs(mese_precedente["profitto_eur"].mean()) * 100)
-    else:
-        var_prod = 0
-        var_profitto = 0
+    # Confronto con periodo precedente (se disponibile)
+    var_prod = 0
+    var_profitto = 0
+    confronto_disponibile = False
+    
+    if len(df) >= giorni_analisi * 2:
+        periodo_precedente = df.iloc[-(giorni_analisi*2):-giorni_analisi]
+        if len(periodo_precedente) > 0:
+            confronto_disponibile = True
+            prod_media_prec = periodo_precedente["litio_estratto_kg"].mean()
+            profitto_medio_prec = periodo_precedente["profitto_eur"].mean()
+            
+            if prod_media_prec != 0:
+                var_prod = ((prod_media - prod_media_prec) / prod_media_prec * 100)
+            if profitto_medio_prec != 0:
+                var_profitto = ((profitto_medio - profitto_medio_prec) / abs(profitto_medio_prec) * 100)
     
     # Costruzione narrativa
     report = f"""
-    📊 **Situazione Ultimi 30 Giorni**
+    📊 **Situazione {periodo_desc}**
     
     L'azienda ha estratto un totale di **{prod_totale:,.0f} kg di litio** con una media giornaliera di **{prod_media:,.0f} kg**. 
-    Rispetto al mese precedente, la produzione è {"aumentata" if var_prod > 0 else "diminuita"} del **{abs(var_prod):.1f}%**.
+    """
+    
+    if confronto_disponibile:
+        report += f"""Rispetto al periodo precedente, la produzione è {"aumentata" if var_prod > 0 else "diminuita"} del **{abs(var_prod):.1f}%**."""
+    else:
+        report += f"""Periodo di analisi: **{giorni_analisi} giorni**."""
+    
+    report += f"""
     
     La purezza media del litio estratto si è attestata al **{purezza_media:.2f}%**, {"superando" if purezza_media >= 98 else "rimanendo sotto"} 
     gli standard premium per batterie ad alta prestazione.
     
     💰 **Performance Finanziaria**
     
-    Il profitto totale del periodo è stato di **€{profitto_totale:,.0f}** (media giornaliera: €{profitto_medio:,.0f}), 
-    con una variazione del **{var_profitto:+.1f}%** rispetto al mese precedente. 
-    {"Ottimo risultato che conferma la solidità operativa!" if var_profitto > 5 else "Si consiglia di monitorare attentamente i costi." if var_profitto < -5 else "Performance stabile nel periodo."}
+    Il profitto totale del periodo è stato di **€{profitto_totale:,.0f}** (media giornaliera: €{profitto_medio:,.0f})"""
+    
+    if confronto_disponibile:
+        report += f""", 
+    con una variazione del **{var_profitto:+.1f}%** rispetto al periodo precedente. 
+    {"Ottimo risultato che conferma la solidità operativa!" if var_profitto > 5 else "Si consiglia di monitorare attentamente i costi." if var_profitto < -5 else "Performance stabile nel periodo."}"""
+    else:
+        report += "."
+    
+    report += f"""
     
     ⚙️ **Efficienza Operativa**
     
-    Gli impianti hanno registrato **{int(guasti_totali)} guasti** nel mese, 
+    Gli impianti hanno registrato **{int(guasti_totali)} guasti** nel periodo, 
     {"un numero elevato che richiede interventi di manutenzione" if guasti_totali > 15 else "un livello accettabile che indica buona manutenzione" if guasti_totali > 5 else "un numero molto basso che testimonia l'eccellente stato degli impianti"}.
     """
     
@@ -516,11 +542,11 @@ def render_tab_content(tab, filter_selection):
             
             if filter_type == "7d":
                 max_date = df_full["data"].max()
-                start_date = max_date - timedelta(days=7)
+                start_date = max_date - timedelta(days=6)
                 df_filtered = df_full[df_full["data"] >= start_date]
             elif filter_type == "30d":
                 max_date = df_full["data"].max()
-                start_date = max_date - timedelta(days=30)
+                start_date = max_date - timedelta(days=29)
                 df_filtered = df_full[df_full["data"] >= start_date]
             elif filter_type == "best":
                 # Filtra per migliori performance (profitto > media + 0.5*std)
