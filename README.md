@@ -11,7 +11,7 @@ Framework & Librerie=
 Formattazione=
   .HTML5, CSS3 / Bootstrap 5
 
-Distribuzioni statistiche implementate:
+Distribuzioni statistiche implementate=  
   .Normale (produzione, purezza)
   .Log-Normale (profitti, prezzi)
   .Poisson (eventi rari)
