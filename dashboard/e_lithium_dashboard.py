@@ -1590,23 +1590,55 @@ def update_whatif(prod_change, prezzo_change, costi_change, date_range_indices):
 # Callback per il grafico trend profitti nel summary tab
 @app.callback(
     Output("summary-profit-trend", "figure"),
-    Input("tabs", "value"),
+    [Input("tabs", "value"),
+     Input("quick-filter-selection", "data")],
     prevent_initial_call=False
 )
-def update_summary_profit_trend(tab):
+def update_summary_profit_trend(tab, filter_selection):
     if tab != "tab-summary":
         return go.Figure()
     
     try:
-        df = load_data()
-        df_last_30 = df.tail(30)
+        df_full = load_data()
+        
+        # Applica lo stesso filtro del summary tab
+        df_filtered = df_full.copy()
+        periodo_desc = "Ultimi 30 Giorni"
+        
+        if filter_selection and "filter" in filter_selection:
+            filter_type = filter_selection["filter"]
+            
+            if filter_type == "7d":
+                max_date = df_full["data"].max()
+                start_date = max_date - timedelta(days=6)
+                df_filtered = df_full[df_full["data"] >= start_date]
+                periodo_desc = "Ultimi 7 Giorni"
+            elif filter_type == "30d":
+                max_date = df_full["data"].max()
+                start_date = max_date - timedelta(days=29)
+                df_filtered = df_full[df_full["data"] >= start_date]
+                periodo_desc = "Ultimi 30 Giorni"
+            elif filter_type == "best":
+                media_profitto = df_full["profitto_eur"].mean()
+                std_profitto = df_full["profitto_eur"].std()
+                df_filtered = df_full[df_full["profitto_eur"] > (media_profitto + 0.5 * std_profitto)]
+                periodo_desc = "Migliori Performance"
+            elif filter_type == "alerts":
+                media_profitto = df_full["profitto_eur"].mean()
+                std_profitto = df_full["profitto_eur"].std()
+                df_filtered = df_full[(df_full["profitto_eur"] < (media_profitto - 0.5 * std_profitto)) | 
+                                      (df_full["purezza_%"] < 97)]
+                periodo_desc = "Alert Criticità"
+        
+        if len(df_filtered) == 0:
+            return go.Figure()
         
         fig = go.Figure()
         
         # Linea profitti
         fig.add_trace(go.Scatter(
-            x=df_last_30["data"],
-            y=df_last_30["profitto_eur"],
+            x=df_filtered["data"],
+            y=df_filtered["profitto_eur"],
             mode='lines+markers',
             name='Profitto Giornaliero',
             line=dict(color='#00CC96', width=3),
@@ -1614,11 +1646,11 @@ def update_summary_profit_trend(tab):
             fill='tozeroy',
             fillcolor='rgba(0, 204, 150, 0.2)',
             hovertemplate='€%{customdata:.1f}k<extra></extra>',
-            customdata=df_last_30["profitto_eur"] / 1000
+            customdata=df_filtered["profitto_eur"] / 1000
         ))
         
         # Linea media
-        media_profitto = df_last_30["profitto_eur"].mean()
+        media_profitto = df_filtered["profitto_eur"].mean()
         media_profitto_k = media_profitto / 1000
         fig.add_hline(
             y=media_profitto,
@@ -1629,7 +1661,7 @@ def update_summary_profit_trend(tab):
         )
         
         fig.update_layout(
-            title="Andamento Profitti Giornalieri",
+            title=f"Andamento Profitti Giornalieri - {periodo_desc}",
             xaxis_title="Data",
             yaxis_title="Profitto (€)",
             template="plotly_dark",
@@ -1647,12 +1679,14 @@ def update_summary_profit_trend(tab):
         )
         
         # Formatta asse Y in migliaia (k)
-        fig.update_yaxes(
-            tickformat='.1f',
-            ticksuffix='k',
-            tickvals=[i*1000 for i in range(0, int(df_last_30["profitto_eur"].max()/1000)+10, 5)],
-            ticktext=[f'{i}' for i in range(0, int(df_last_30["profitto_eur"].max()/1000)+10, 5)]
-        )
+        if len(df_filtered) > 0 and df_filtered["profitto_eur"].max() > 0:
+            max_val = int(df_filtered["profitto_eur"].max()/1000) + 10
+            fig.update_yaxes(
+                tickformat='.1f',
+                ticksuffix='k',
+                tickvals=[i*1000 for i in range(0, max_val, 5)],
+                ticktext=[f'{i}' for i in range(0, max_val, 5)]
+            )
         
         return fig
     except Exception as e:
