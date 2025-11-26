@@ -67,7 +67,7 @@ navbar = dbc.Navbar(
                 href="#"
             ),
             html.Span(
-                "v1.0.3",
+                "v1.1.0",
                 style={
                     "color": "#6c757d",
                     "fontSize": "0.9rem",
@@ -1753,7 +1753,7 @@ def update_summary_profit_trend(tab, filter_selection):
             template="plotly_dark",
             hovermode='x unified',
             height=400,
-            margin=dict(l=60, r=120, t=60, b=60),
+            margin=dict(l=60, r=120, t=80, b=60),
             showlegend=True,
             legend=dict(
                 orientation="h",
