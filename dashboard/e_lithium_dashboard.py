@@ -477,7 +477,7 @@ app.layout = dbc.Container([
     dcc.Store(id="purezza-slider", data=[0, 100]),
     dcc.Store(id="profitto-slider", data=[0, 100000]),
     dcc.Store(id="quick-filter-selection", data={"filter": "all"}),
-    dcc.Store(id="welcome-shown", storage_type='local', data=False),
+    dcc.Store(id="welcome-shown", storage_type='session', data=False),
     
     # Modal di Benvenuto
     dbc.Modal([
@@ -571,7 +571,7 @@ app.layout = dbc.Container([
                     html.H6("Info Legali", className="text-primary mb-2"),
                     html.P([
                         "P.IVA: IT12345678901 | REA: CA-123456 | ",
-                        "Cap. Soc.: € 5.000.000 i.v."
+                        "Cap. Soc.: € 52.000.000 i.v."
                     ], className="mb-0 small")
                 ])
             ], className="mb-2"),
@@ -765,7 +765,7 @@ def create_executive_summary_tab(df, active_filter="all"):
         
         # Insights automatici
         dbc.Card([
-            dbc.CardHeader(html.H5("💡 Insights e Raccomandazioni", className="mb-0")),
+            dbc.CardHeader(html.H4("💡 Insights e Raccomandazioni", className="mb-0")),
             dbc.CardBody([
                 html.Ul(genera_insights_automatici(df), className="mb-0", 
                        style={"listStyle": "none", "paddingLeft": "0"})
@@ -780,7 +780,7 @@ def create_executive_summary_tab(df, active_filter="all"):
         
         # Report narrativo
         dbc.Card([
-            dbc.CardHeader(html.H5("📄 Report Esecutivo", className="mb-0")),
+            dbc.CardHeader(html.H4("📄 Report Esecutivo", className="mb-0")),
             dbc.CardBody([
                 dcc.Markdown(genera_report_narrativo(df), className="mb-0")
             ])
@@ -999,6 +999,13 @@ def create_whatif_tab(df):
             "fontSize": "clamp(1.3rem, 4.5vw, 2rem)"
         }),
         
+        html.P([
+            "Questo strumento permette di simulare scenari futuri modificando i parametri operativi chiave. ",
+            "Puoi aumentare o diminuire la produzione, variare i prezzi di vendita e i costi operativi per ",
+            "analizzare l'impatto economico sul profitto totale. Il sistema ricalcola automaticamente i KPI ",
+            "e genera grafici comparativi tra lo scenario storico e quello simulato."
+        ], className="lead text-muted mb-4", style={"fontSize": "clamp(0.9rem, 2.5vw, 1.1rem)"}),
+        
         # Filtro temporale
         dbc.Card([
             dbc.CardBody([
@@ -1085,7 +1092,7 @@ def create_source_tab():
         
         # Sezione GitHub
         html.P([
-            "Esplora il codice sorgente di questa dashboard su GitHub ",
+            "Esplora il codice sorgente di questa dashboard sul mio repository GitHub: ",
             html.A([
                 html.I(className="fab fa-github me-2"),
                 "Iappelli-Leonardo/e-lithium"
@@ -1122,29 +1129,34 @@ def create_source_tab():
                 ]),
                 
                 html.H6("Analisi Statistica", className="text-primary mt-3"),
-                html.P([
-                    "Il sistema implementa distribuzioni teoriche per l'analisi predittiva: ",
-                    html.Strong("Gaussiana"), " (produzione, purezza), ",
-                    html.Strong("Log-Normale"), " (profitti, prezzi), ",
-                    html.Strong("Poisson"), " (eventi rari/guasti)."
+                html.P("Il sistema implementa distribuzioni statistiche per l'analisi predittiva:"),
+                html.Ul([
+                    html.Li([html.Strong("Gaussiana"), " - Produzione, purezza, margine, costi"]),
+                    html.Li([html.Strong("Log-Normale"), " - Profitti, prezzi"]),
+                    html.Li([html.Strong("Poisson"), " - Eventi rari e guasti"])
                 ]),
                 
                 html.H6("Hosting & Deployment", className="text-primary mt-3"),
                 html.P([
-                    "L'applicazione è hostata su ", html.Strong("Render"), " (piano gratuito), una piattaforma cloud ",
+                    "L'applicazione è distribuita su ", html.Strong("Render"), " (piano gratuito), una piattaforma cloud ",
                     "che offre hosting automatizzato per applicazioni web. Render si occupa di:"
                 ]),
                 html.Ul([
                     html.Li([html.Strong("Build"), " automatico dal repository GitHub"]),
-                    html.Li([html.Strong("Deploy"), " continuo ad ogni push su branch main/dev"]),
-                    html.Li([html.Strong("Restart"), " automatico del server in caso di crash"]),
-                    html.Li([html.Strong("Dominio"), " pubblico con connessione sicura HTTPS (certificato SSL gratuito)"]),
+                    html.Li([html.Strong("Deploy"), " automatico impostato ad ogni nuovo commit, su branch main/dev"]),
+                    html.Li([html.Strong("Restart"), " automatico del server in caso di crash, andando ad eseguire la build dell'ultima versione stabile dell'applicazione"]),
+                    html.Li([html.Strong("Dominio"), " pubblico con connessione sicura con certificato SSL (HTTPS)"]),
                     html.Li([html.Strong("Esecuzione"), " con Gunicorn come WSGI server per performance ottimali"])
                 ]),
                 html.P([
                     html.Small([
-                        "⚠️ ", html.Strong("Nota:"), " ", html.Em("Il piano gratuito di Render mette in sleep l'applicazione dopo 15 minuti di inattività. "),
-                        "Il primo accesso dopo il periodo di inattività può richiedere 30-60 secondi per il riavvio."
+                        "⚠️ ", html.Strong("Nota:"), " ", html.Em("Il piano gratuito di Render mette in sleep l'applicazione dopo 15 minuti di inattività, nel caso in cui non si sia traffico web."),
+                        html.Br(),
+                        html.Strong("Il primo accesso, dopo il periodo di inattività, può richiedere 30-60 secondi per il riavvio del server."),
+                        html.Br(),
+                        html.Em("L'applicazione è stata progettata per minimizzare i tempi di avvio, tuttavia alcune funzionalità potrebbero richiedere un breve caricamento iniziale data la mole di dati salvati in memoria."),
+                        html.Br(),
+                        html.Em("I dati visualizzati, analizzati e utilizzati per le simulazioni, sono generati a partire dalla data di avvio del server e coprono un intervallo temporale fino a un anno precedente.")
                     ], className="text-muted")
                 ])
             ])
@@ -1191,7 +1203,7 @@ def create_source_tab():
                     html.Li([html.Strong("Controller"), " - Callbacks Pattern-Matching per interattività real-time"])
                 ]),
                 html.P([
-                    "Sistema di ", html.Strong("callback reactivi"), " che aggiornano automaticamente i componenti ",
+                    "Sistema di ", html.Strong("callback reattivi"), " che aggiornano automaticamente i componenti ",
                     "in base alle azioni dell'utente (filtri, tab, simulazioni)."
                 ])
             ])
