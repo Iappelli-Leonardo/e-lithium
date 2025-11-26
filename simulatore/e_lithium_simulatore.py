@@ -36,19 +36,22 @@ def simulate_production_data(num_days: int):
 
 
 def simulate_economic_data(num_days: int, litio_estratto):
-    """Simula dati economici legati alla vendita di litio (solo valori positivi per log scale)"""
+    """Simula dati economici legati alla vendita di litio con valori più equilibrati"""
 
-    prezzo = np.random.lognormal(mean=np.log(70), sigma=0.05, size=num_days)   # da 0.03 → 0.05
+    # Prezzo del litio: media 70 €/kg con variabilità ridotta
+    prezzo = np.random.lognormal(mean=np.log(70), sigma=0.03, size=num_days)
 
-    costi = np.random.lognormal(mean=np.log(52000), sigma=0.15, size=num_days) # da 0.08 → 0.15
+    # Costi operativi: più stabili e proporzionati per garantire profitti positivi
+    # Calcoliamo i costi in modo che siano circa il 70-75% dei ricavi medi
+    ricavi_stimati = litio_estratto * 70  # ricavo medio atteso
+    costi = ricavi_stimati * np.random.normal(0.72, 0.05, num_days)  # 72% dei ricavi ± 5%
+    costi = np.maximum(costi, 1000)  # assicura costi minimi positivi
 
     ricavi = litio_estratto * prezzo
     profitto = ricavi - costi
 
-    # Assicuriamoci che il profitto sia almeno 1 (per log scale)
-    # Evita valori troppo piccoli
-    profitto = np.where(profitto <= 0, np.random.uniform(1000, 5000), profitto)
-
+    # Assicura che i profitti siano prevalentemente positivi
+    profitto = np.where(profitto <= 0, np.random.uniform(2000, 8000), profitto)
 
     return prezzo, costi, ricavi, profitto
 

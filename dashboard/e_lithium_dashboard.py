@@ -1652,10 +1652,35 @@ def update_whatif(prod_change, prezzo_change, costi_change, date_range_indices):
         df_scenario["profitto_eur"] = df_scenario["ricavi_eur"] - df_scenario["costi_eur"]
         df_scenario["margine_%"] = (df_scenario["profitto_eur"] / df_scenario["ricavi_eur"].replace(0, 1)) * 100
         
+        # Crea colonne per tooltip formattati
+        df_scenario["profitto_k"] = df_scenario["profitto_eur"] / 1000
+        
         fig_prof = px.line(df_scenario, x="data", y="profitto_eur",
-                           title=f"Profitto Scenario (+Prod: {prod_change}%, €Prezzo: {prezzo_change:+d}, -Costi: {costi_change}%)")
+                           title=f"Profitto Scenario (+Prod: {prod_change}%, €Prezzo: {prezzo_change:+d}, -Costi: {costi_change}%)",
+                           custom_data=["profitto_k"])
         fig_marg = px.line(df_scenario, x="data", y="margine_%",
                            title="Margine Scenario (%)")
+        
+        # Formattazione grafico profitti
+        fig_prof.update_traces(hovertemplate='<b>Data:</b> %{x|%Y-%m-%d}<br><b>Profitto:</b> €%{customdata[0]:.1f}k<extra></extra>')
+        if len(df_scenario) > 0:
+            min_val = int(df_scenario["profitto_eur"].min()/1000) - 5
+            max_val = int(df_scenario["profitto_eur"].max()/1000) + 10
+            
+            # Crea tick values e labels personalizzati
+            tick_range = list(range(min_val, max_val, 5))
+            tickvals = [i*1000 for i in tick_range]
+            ticktext = [str(i) if i == 0 else f'{i}k' for i in tick_range]
+            
+            fig_prof.update_yaxes(
+                tickmode='array',
+                tickvals=tickvals,
+                ticktext=ticktext
+            )
+        
+        # Formattazione grafico margine
+        fig_marg.update_traces(hovertemplate='<b>Data:</b> %{x|%Y-%m-%d}<br><b>Margine:</b> %{y:.1f}%<extra></extra>')
+        fig_marg.update_yaxes(ticksuffix='%')
         
         for fig in [fig_prof, fig_marg]:
             fig.update_layout(
