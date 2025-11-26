@@ -477,6 +477,80 @@ app.layout = dbc.Container([
     dcc.Store(id="purezza-slider", data=[0, 100]),
     dcc.Store(id="profitto-slider", data=[0, 100000]),
     dcc.Store(id="quick-filter-selection", data={"filter": "all"}),
+    dcc.Store(id="welcome-shown", storage_type='local', data=False),
+    
+    # Modal di Benvenuto
+    dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle([
+            html.I(className="fas fa-battery-full me-2"),
+            "Benvenuti in E-Lithium S.p.A."
+        ]), close_button=True),
+        dbc.ModalBody([
+            html.Div([
+                html.H4("🏭 Sistema di Monitoraggio Produzione", className="text-center mb-4"),
+                html.P([
+                    "Benvenuti nella dashboard interattiva di ", html.Strong("E-Lithium S.p.A."), 
+                    ", azienda leader nell'estrazione e raffinazione di litio ad alta purezza per il settore della mobilità elettrica."
+                ], className="lead text-center mb-4"),
+                
+                html.Hr(),
+                
+                html.H5("📊 Funzionalità Principali:", className="mb-3"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("📋 Riepilogo Esecutivo", className="text-primary"),
+                                html.P("Vista semplificata con KPI, insights automatici e filtri rapidi", className="small mb-0")
+                            ])
+                        ], className="h-100 mb-3")
+                    ], xs=12, md=6),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("📊 Dashboard Operativa", className="text-primary"),
+                                html.P("Analisi dettagliata con distribuzioni statistiche e correlazioni", className="small mb-0")
+                            ])
+                        ], className="h-100 mb-3")
+                    ], xs=12, md=6),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("🔮 Simulazione What-If", className="text-primary"),
+                                html.P("Scenari futuri modificando produzione, prezzi e costi", className="small mb-0")
+                            ])
+                        ], className="h-100 mb-3")
+                    ], xs=12, md=6),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("🏭 Info Aziendali", className="text-primary"),
+                                html.P("Informazioni su processi, mercato e tecnologie utilizzate", className="small mb-0")
+                            ])
+                        ], className="h-100 mb-3")
+                    ], xs=12, md=6),
+                ]),
+                
+                html.Hr(className="my-4"),
+                
+                html.Div([
+                    html.P([
+                        html.I(className="fas fa-car-battery me-2"),
+                        html.Strong("Destinazione: "),
+                        "Batterie per veicoli elettrici ed ibridi (auto e moto)"
+                    ], className="mb-2"),
+                    html.P([
+                        html.I(className="fas fa-chart-line me-2"),
+                        html.Strong("Monitoraggio: "),
+                        "365 giorni di dati produttivi, ambientali ed economici"
+                    ], className="mb-0")
+                ], className="text-center bg-light p-3 rounded")
+            ])
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Inizia l'Esplorazione", id="close-welcome", color="primary", size="lg", className="w-100")
+        ])
+    ], id="welcome-modal", is_open=True, backdrop="static", keyboard=False, size="lg"),
 
     html.Div(id="tab-content"),
     
@@ -1692,6 +1766,33 @@ def update_summary_profit_trend(tab, filter_selection):
     except Exception as e:
         print(f"Errore summary profit trend: {e}")
         return go.Figure()
+
+
+# Callback per gestire la chiusura del modal di benvenuto
+@app.callback(
+    [Output("welcome-modal", "is_open"),
+     Output("welcome-shown", "data")],
+    [Input("close-welcome", "n_clicks"),
+     Input("welcome-modal", "is_open")],
+    [State("welcome-shown", "data")],
+    prevent_initial_call=False
+)
+def close_welcome_modal(n_clicks, is_open, welcome_shown):
+    """Chiude il modal di benvenuto al primo click."""
+    # Se l'utente ha già visto il welcome, non mostrarlo
+    if welcome_shown:
+        return False, True
+    
+    # Se l'utente clicca sul pulsante o sulla X (modal si chiude), salva lo stato
+    if n_clicks is not None and n_clicks > 0:
+        return False, True
+    
+    # Se il modal è stato chiuso (is_open diventa False), salva lo stato
+    if is_open == False and not welcome_shown:
+        return False, True
+    
+    # Prima visita: mostra il modal
+    return True, False
 
 
 # Avvio del server dell'applicazione
