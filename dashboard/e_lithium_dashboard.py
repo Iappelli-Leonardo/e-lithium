@@ -578,7 +578,45 @@ app.layout = dbc.Container([
         ], fluid=True), 
         className="mt-5 bg-dark text-light py-3",
         style={"clear": "both", "position": "relative", "width": "100%"}
-    )
+    ),
+    
+    # Script JavaScript per formattare i tooltip degli slider
+    html.Script("""
+        document.addEventListener('DOMContentLoaded', function() {
+            // Formattazione tooltip profitto in formato "k" arrotondato a 1 decimale
+            setTimeout(function() {
+                const profittoSlider = document.querySelector('#profitto-range');
+                if (profittoSlider) {
+                    const observer = new MutationObserver(function(mutations) {
+                        const tooltips = document.querySelectorAll('#profitto-range .rc-slider-tooltip-inner');
+                        tooltips.forEach(tooltip => {
+                            const value = parseFloat(tooltip.textContent.replace(/[^0-9.-]/g, ''));
+                            if (!isNaN(value)) {
+                                const rounded = Math.round(value/100) / 10;
+                                tooltip.textContent = '€' + rounded.toFixed(1) + 'k';
+                            }
+                        });
+                    });
+                    observer.observe(profittoSlider, { childList: true, subtree: true });
+                }
+                
+                // Formattazione tooltip purezza con 4 decimali
+                const purezzaSlider = document.querySelector('#purezza-range');
+                if (purezzaSlider) {
+                    const observer = new MutationObserver(function(mutations) {
+                        const tooltips = document.querySelectorAll('#purezza-range .rc-slider-tooltip-inner');
+                        tooltips.forEach(tooltip => {
+                            const value = parseFloat(tooltip.textContent);
+                            if (!isNaN(value)) {
+                                tooltip.textContent = value.toFixed(4);
+                            }
+                        });
+                    });
+                    observer.observe(purezzaSlider, { childList: true, subtree: true });
+                }
+            }, 1000);
+        });
+    """)
 ], fluid=True)
 
 
@@ -835,26 +873,37 @@ def create_dashboard_tab(df, df_full):
                         html.Label("Purezza (%)", className="fw-bold", style={
                             "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
                         }),
+                        html.Div(id="purezza-display", className="text-center mb-2", style={
+                            "fontSize": "0.9rem",
+                            "color": "#00d9ff",
+                            "fontWeight": "bold"
+                        }),
                         dcc.RangeSlider(
                             id="purezza-range",
                             min=df_full["purezza_%"].min(),
                             max=df_full["purezza_%"].max(),
+                            step=0.001,
                             value=purezza_range,
-                            marks={i: f"{i:.1f}" for i in np.linspace(df_full["purezza_%"].min(), df_full["purezza_%"].max(), 5)},
-                            tooltip={"placement": "bottom", "always_visible": True}
+                            marks={i: f"{i:.2f}" for i in np.linspace(df_full["purezza_%"].min(), df_full["purezza_%"].max(), 5)},
+                            tooltip={"placement": "bottom", "always_visible": False}
                         )
                     ], xs=12, md=4, className="mb-3"),
                     dbc.Col([
                         html.Label("Profitto (€)", className="fw-bold", style={
                             "fontSize": "clamp(0.85rem, 2.5vw, 1rem)"
                         }),
+                        html.Div(id="profitto-display", className="text-center mb-2", style={
+                            "fontSize": "0.9rem",
+                            "color": "#00d9ff",
+                            "fontWeight": "bold"
+                        }),
                         dcc.RangeSlider(
                             id="profitto-range",
                             min=df_full["profitto_eur"].min(),
                             max=df_full["profitto_eur"].max(),
                             value=profitto_range,
-                            marks={i: f"€{i/1000:.0f}k" for i in np.linspace(df_full["profitto_eur"].min(), df_full["profitto_eur"].max(), 5)},
-                            tooltip={"placement": "bottom", "always_visible": True}
+                            marks={i: f"€{i/1000:.1f}k" for i in np.linspace(df_full["profitto_eur"].min(), df_full["profitto_eur"].max(), 5)},
+                            tooltip={"placement": "bottom", "always_visible": False}
                         )
                     ], xs=12, md=4, className="mb-3"),
                 ])
@@ -901,14 +950,14 @@ def create_dashboard_tab(df, df_full):
         }),
         
         dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-produzione-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
-            dbc.Col(dcc.Graph(id="dist-purezza-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
-        ], className="mb-4"),
+            dbc.Col(dcc.Graph(id="dist-produzione-gauss", config={'responsive': True}, style={'height': '500px'}), xs=12, lg=6, className="mb-4"),
+            dbc.Col(dcc.Graph(id="dist-purezza-gauss", config={'responsive': True}, style={'height': '500px'}), xs=12, lg=6, className="mb-4"),
+        ], className="mb-5"),
         
         dbc.Row([
-            dbc.Col(dcc.Graph(id="dist-margine-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
-            dbc.Col(dcc.Graph(id="dist-costi-gauss", config={'responsive': True}), xs=12, lg=6, className="mb-3"),
-        ], className="mb-4"),
+            dbc.Col(dcc.Graph(id="dist-margine-gauss", config={'responsive': True}, style={'height': '500px'}), xs=12, lg=6, className="mb-4"),
+            dbc.Col(dcc.Graph(id="dist-costi-gauss", config={'responsive': True}, style={'height': '500px'}), xs=12, lg=6, className="mb-4"),
+        ], className="mb-5"),
 
         # Distribuzioni Teoriche - Sezione 2: Log-Normali - Responsive
         html.H3("📈 Distribuzioni Log-Normali", className="mt-5 mb-3 text-center", style={
@@ -1221,9 +1270,26 @@ def create_gaussian_distribution(df, column, title, color="#636EFA"):
         fig.add_annotation(text="Dati insufficienti")
         return fig
     
-    # Calcola parametri
-    mu, sigma = data.mean(), data.std()
-    cv = (sigma / mu * 100) if mu != 0 else 0
+    # Mappa dei nomi delle colonne in etichette leggibili
+    column_labels = {
+        "litio_estratto_kg": "Litio estratto (kg)",
+        "purezza_%": "Purezza (%)",
+        "margine_%": "Margine (%)",
+        "costi_eur": "Costi (€)",
+        "profitto_eur": "Profitto (€)",
+        "prezzo_litio_eur_kg": "Prezzo litio (€/kg)",
+        "guasti": "Guasti"
+    }
+    xlabel = column_labels.get(column, column)
+    
+    # Calcola parametri (valori originali per il fit)
+    mu_orig = data.mean()
+    sigma_orig = data.std()
+    
+    # Arrotonda per la visualizzazione
+    mu = round(mu_orig, 1)
+    sigma = round(sigma_orig, 1)
+    cv = round((sigma_orig / mu_orig * 100) if mu_orig != 0 else 0, 1)
     
     # Istogramma empirico in blu
     fig.add_trace(go.Histogram(
@@ -1239,13 +1305,13 @@ def create_gaussian_distribution(df, column, title, color="#636EFA"):
     # Fit Gaussiano in rosso
     try:
         x_range = np.linspace(data.min(), data.max(), 300)
-        y_gaussian = stats.norm.pdf(x_range, mu, sigma)
+        y_gaussian = stats.norm.pdf(x_range, mu_orig, sigma_orig)
         
         fig.add_trace(go.Scatter(
             x=x_range,
             y=y_gaussian,
             mode='lines',
-            name=f'Gauss(μ={mu:.2f}, σ={sigma:.2f})',
+            name=f'Gauss(μ={mu:.1f}, σ={sigma:.1f})',
             line=dict(color='#FF0000', width=3),  # Rosso
             showlegend=True
         ))
@@ -1258,7 +1324,7 @@ def create_gaussian_distribution(df, column, title, color="#636EFA"):
             text=title,
             font=dict(size=16, color='white')
         ),
-        xaxis_title=column,
+        xaxis_title=xlabel,
         yaxis_title='Densità di Probabilità',
         template='plotly_dark',
         paper_bgcolor='#1e1e1e',
@@ -1274,7 +1340,7 @@ def create_gaussian_distribution(df, column, title, color="#636EFA"):
             borderwidth=1,
             font=dict(size=11, color='white'),
             title=dict(
-                text=f'μ = {mu:.2f}<br>σ = {sigma:.2f}<br>CV = {cv:.1f}%',
+                text=f'μ = {mu:.1f}<br>σ = {sigma:.1f}<br>CV = {cv:.1f}%',
                 font=dict(size=12, color='white')
             )
         ),
@@ -1296,6 +1362,18 @@ def create_lognormal_distribution(df, column, title, color="#00CC96"):
         fig.add_annotation(text="Dati insufficienti")
         return fig
     
+    # Mappa dei nomi delle colonne in etichette leggibili
+    column_labels = {
+        "litio_estratto_kg": "Litio estratto (kg)",
+        "purezza_%": "Purezza (%)",
+        "margine_%": "Margine (%)",
+        "costi_eur": "Costi (€)",
+        "profitto_eur": "Profitto (€)",
+        "prezzo_litio_eur_kg": "Prezzo litio (€/kg)",
+        "guasti": "Guasti"
+    }
+    xlabel = column_labels.get(column, column)
+    
     # Istogramma empirico in blu
     fig.add_trace(go.Histogram(
         x=data,
@@ -1309,21 +1387,22 @@ def create_lognormal_distribution(df, column, title, color="#00CC96"):
     
     # Fit Log-Normale in arancione
     try:
-        # Parametri della log-normale
-        shape, loc, scale = stats.lognorm.fit(data, floc=0)
+        # Parametri della log-normale (originali per il fit)
+        shape_orig, loc, scale_orig = stats.lognorm.fit(data, floc=0)
         
         x_range = np.linspace(data.min(), data.max(), 300)
-        y_lognorm = stats.lognorm.pdf(x_range, shape, loc, scale)
+        y_lognorm = stats.lognorm.pdf(x_range, shape_orig, loc, scale_orig)
         
-        # Calcola media e mediana
-        mean_ln = np.exp(np.log(scale) + shape**2 / 2)
-        median_ln = scale
+        # Calcola e arrotonda per la visualizzazione
+        mean_ln = round(np.exp(np.log(scale_orig) + shape_orig**2 / 2), 1)
+        median_ln = round(scale_orig, 1)
+        shape = round(shape_orig, 1)
         
         fig.add_trace(go.Scatter(
             x=x_range,
             y=y_lognorm,
             mode='lines',
-            name=f'Log-Normale(σ={shape:.2f})',
+            name=f'Log-Normale(σ={shape:.1f})',
             line=dict(color='#FF8C00', width=3),  # Arancione scuro
             showlegend=True
         ))
@@ -1331,13 +1410,17 @@ def create_lognormal_distribution(df, column, title, color="#00CC96"):
         print(f"Errore Log-Normal fit: {e}")
         mean_ln, median_ln, shape = 0, 0, 0
     
+    # Formatta media e mediana con notazione "k" se >= 1000
+    mean_ln_str = f'{mean_ln/1000:.1f}k' if mean_ln >= 1000 else f'{mean_ln:.1f}'
+    median_ln_str = f'{median_ln/1000:.1f}k' if median_ln >= 1000 else f'{median_ln:.1f}'
+    
     # Layout con legenda personalizzata
     fig.update_layout(
         title=dict(
             text=title,
             font=dict(size=16, color='white')
         ),
-        xaxis_title=column,
+        xaxis_title=xlabel,
         yaxis_title='Densità di Probabilità',
         template='plotly_dark',
         paper_bgcolor='#1e1e1e',
@@ -1353,7 +1436,7 @@ def create_lognormal_distribution(df, column, title, color="#00CC96"):
             borderwidth=1,
             font=dict(size=11, color='white'),
             title=dict(
-                text=f'Media = {mean_ln:.2f}<br>Mediana = {median_ln:.2f}<br>σ = {shape:.3f}',
+                text=f'Media = {mean_ln_str}<br>Mediana = {median_ln_str}<br>σ = {shape:.1f}',
                 font=dict(size=12, color='white')
             )
         ),
@@ -1373,6 +1456,18 @@ def create_poisson_distribution(df, column, title, color="#AB63FA"):
     if len(data) < 2:
         fig.add_annotation(text="Dati insufficienti")
         return fig
+    
+    # Mappa dei nomi delle colonne in etichette leggibili
+    column_labels = {
+        "litio_estratto_kg": "Litio estratto (kg)",
+        "purezza_%": "Purezza (%)",
+        "margine_%": "Margine (%)",
+        "costi_eur": "Costi (€)",
+        "profitto_eur": "Profitto (€)",
+        "prezzo_litio_eur_kg": "Prezzo litio (€/kg)",
+        "guasti": "Numero guasti"
+    }
+    xlabel = column_labels.get(column, column)
     
     # Stima λ dai dati empirici
     lambda_est = data.mean()
@@ -1413,7 +1508,7 @@ def create_poisson_distribution(df, column, title, color="#AB63FA"):
             text=title,
             font=dict(size=16, color='white')
         ),
-        xaxis_title='k (numero di eventi)',
+        xaxis_title=xlabel,
         yaxis_title='P(x = k)',
         template='plotly_dark',
         paper_bgcolor='#1e1e1e',
@@ -1429,7 +1524,7 @@ def create_poisson_distribution(df, column, title, color="#AB63FA"):
             borderwidth=1,
             font=dict(size=11, color='white'),
             title=dict(
-                text=f'λ stim = {lambda_est:.2f}<br>Var = {variance:.2f}<br>Eventi = {len(data)}',
+                text=f'λ stim = {lambda_est:.1f}<br>Var = {variance:.1f}<br>Eventi = {len(data)}',
                 font=dict(size=12, color='white')
             )
         ),
@@ -1534,14 +1629,15 @@ def update_dashboard_graphs(start_date, end_date, purezza_range, profitto_range)
         
         # === HEATMAP CORRELAZIONI ===
         corr_cols = ["litio_estratto_kg", "purezza_%", "profitto_eur", "margine_%", "costi_eur", "prezzo_litio_eur_kg", "guasti"]
+        corr_labels = ["Litio estratto (kg)", "Purezza (%)", "Profitto (€)", "Margine (%)", "Costi (€)", "Prezzo litio (€/kg)", "Guasti"]
         corr_matrix = df[corr_cols].corr()
         fig_heatmap = go.Figure(data=go.Heatmap(
             z=corr_matrix.values,
-            x=corr_cols,
-            y=corr_cols,
+            x=corr_labels,
+            y=corr_labels,
             colorscale="RdBu",
             zmid=0,
-            text=corr_matrix.values.round(2),
+            text=corr_matrix.values.round(1),
             texttemplate="%{text}",
             textfont={"size": 10},
             colorbar=dict(title="Correlazione")
@@ -1804,6 +1900,29 @@ def update_summary_profit_trend(tab, filter_selection):
         print(f"Errore summary profit trend: {e}")
         return go.Figure()
 
+# Callback per mostrare i valori del filtro purezza formattati
+@app.callback(
+    Output("purezza-display", "children"),
+    Input("purezza-range", "value")
+)
+def update_purezza_display(value):
+    """Mostra i valori della purezza con 4 decimali."""
+    if value is None:
+        return ""
+    return f"{value[0]:.4f} - {value[1]:.4f}"
+
+# Callback per mostrare i valori del filtro profitto formattati in k
+@app.callback(
+    Output("profitto-display", "children"),
+    Input("profitto-range", "value")
+)
+def update_profitto_display(value):
+    """Mostra i valori del profitto in formato k arrotondati."""
+    if value is None:
+        return ""
+    min_val = round(value[0] / 100) / 10
+    max_val = round(value[1] / 100) / 10
+    return f"€{min_val:.1f}k - €{max_val:.1f}k"
 
 # Callback per gestire la chiusura del modal di benvenuto
 @app.callback(
