@@ -167,6 +167,12 @@ def create_kpi_card(title, value, trend, color, trend_value):
                     "fontWeight": "600", 
                     "fontSize": "clamp(0.8rem, 2.5vw, 0.9rem)",  # Responsive font size
                     "textAlign": "center"
+                }),
+                html.Small("Rispetto ad oggi", className="d-block", style={
+                    "color": "rgba(255, 255, 255, 0.8)",
+                    "textAlign": "center",
+                    "fontSize": "clamp(0.65rem, 2vw, 0.8rem)",
+                    "marginTop": "0.15rem"
                 })
             ], style={"width": "100%", "padding": "0.5rem"})
         ], style={"padding": "0.75rem"})
@@ -419,6 +425,12 @@ def create_kpi_card_with_semaphore(title, value, trend, color, trend_value, stat
                     "fontWeight": "600", 
                     "fontSize": "clamp(0.8rem, 2.5vw, 0.9rem)",
                     "textAlign": "center"
+                }),
+                html.Small("Rispetto ad oggi", className="d-block", style={
+                    "color": "rgba(255, 255, 255, 0.8)",
+                    "textAlign": "center",
+                    "fontSize": "clamp(0.65rem, 2vw, 0.8rem)",
+                    "marginTop": "0.15rem"
                 })
             ], style={"width": "100%", "padding": "0.5rem"})
         ], style={"padding": "0.75rem"})
