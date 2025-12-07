@@ -564,7 +564,7 @@ app.layout = dbc.Container([
         ])
     ], id="welcome-modal", is_open=True, backdrop="static", keyboard=False, size="lg"),
 
-    html.Div(id="tab-content"),
+    html.Div(id="tab-content", className="flex-grow-1 w-100"),
     
     # Sezione inferiore con informazioni aziendali
     html.Footer(
@@ -588,8 +588,8 @@ app.layout = dbc.Container([
                 ])
             ], className="mb-2"),
         ], fluid=True), 
-        className="mt-5 bg-dark text-light py-3",
-        style={"clear": "both", "position": "relative", "width": "100%"}
+        className="bg-dark text-light py-3 mt-auto",
+        style={"width": "100%"}
     ),
     
     # Script JavaScript per formattare i tooltip degli slider
@@ -629,7 +629,7 @@ app.layout = dbc.Container([
             }, 1000);
         });
     """)
-], fluid=True)
+], fluid=True, className="d-flex flex-column min-vh-100", style={"paddingBottom": "0"})
 
 
 # Gestione degli eventi e aggiornamento dinamico dei componenti
