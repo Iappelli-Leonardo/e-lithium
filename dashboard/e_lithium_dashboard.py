@@ -67,7 +67,7 @@ navbar = dbc.Navbar(
                 href="#"
             ),
             html.Span(
-                "v1.1.0",
+                "v2.0.0",
                 style={
                     "color": "#6c757d",
                     "fontSize": "0.9rem",
@@ -562,7 +562,7 @@ app.layout = dbc.Container([
                 dbc.Col([
                     html.H6("Contatti", className="text-primary mb-2"),
                     html.P([
-                        html.Span("Via Roma 123, Roma | "),
+                        html.Span("Monte Amiata, Grosseto (GR) - Siena (SI) | "),
                         html.Span("Tel: +39 070 1234567 | "),
                         html.Span("info@e-lithium.it")
                     ], className="mb-0 small")
