@@ -22,7 +22,7 @@ project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 csv_path = os.path.join(project_dir, "data", "e_lithium_data.csv")
 simulatore_path = os.path.join(project_dir, "simulatore", "e_lithium_simulatore.py")
 
-# Avvia il simulatore per generare i dati freschi (solo una volta, non in debug reload)
+# Avvia il simulatore per generare i dati aggiornati (solo una volta, non in debug reload)
 if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
     print("[Dashboard] Avviamento del simulatore per generare i dati...")
     try:
