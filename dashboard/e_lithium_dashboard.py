@@ -90,7 +90,7 @@ navbar = dbc.Navbar(
                 href="#"
             ),
             html.Span(
-                "v2.0.1",
+                "v2.0.2",
                 style={
                     "color": "#6c757d",
                     "fontSize": "0.9rem",
