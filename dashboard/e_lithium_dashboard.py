@@ -48,6 +48,29 @@ app = Dash(
 app.title = "E-Lithium S.p.A"
 app.config.suppress_callback_exceptions = True 
 
+# Mappa dei mesi in italiano per riferimenti dinamici
+ITALIAN_MONTHS = {
+    1: "Gennaio",
+    2: "Febbraio",
+    3: "Marzo",
+    4: "Aprile",
+    5: "Maggio",
+    6: "Giugno",
+    7: "Luglio",
+    8: "Agosto",
+    9: "Settembre",
+    10: "Ottobre",
+    11: "Novembre",
+    12: "Dicembre"
+}
+
+
+def get_current_month_year_it():
+    """Restituisce mese e anno correnti in italiano"""
+    now = datetime.now()
+    month_name = ITALIAN_MONTHS.get(now.month, str(now.month))
+    return f"{month_name} {now.year}"
+
 navbar = dbc.Navbar(
     dbc.Container(
         [
@@ -67,7 +90,7 @@ navbar = dbc.Navbar(
                 href="#"
             ),
             html.Span(
-                "v2.0.0",
+                "v2.0.1",
                 style={
                     "color": "#6c757d",
                     "fontSize": "0.9rem",
@@ -441,6 +464,11 @@ def create_kpi_card_with_semaphore(title, value, trend, color, trend_value, stat
 app.layout = dbc.Container([
     navbar,
     html.H1("Sistema di Monitoraggio", className="text-center my-4"),
+    html.P(
+        "La piattaforma analizza produzione, qualità, costi e profitti del litio per offrire una visione chiara delle performance dell'azienda.",
+        className="text-center text-muted",
+        style={"maxWidth": "720px", "margin": "0 auto 1.5rem", "fontSize": "0.95rem"}
+    ),
 
     dcc.Tabs(
         id="tabs",
@@ -655,7 +683,7 @@ def render_tab_content(tab, filter_selection):
     """Renderizza il contenuto del tab selezionato e gestisce i filtri del summary"""
     df_full = load_data()
     
-    # Se siamo nel tab summary, applica il filtro selezionato
+    # Se siamo nel tab summary, applico il filtro selezionato
     if tab == "tab-summary":
         df_filtered = df_full.copy()
         active_filter = "all"
@@ -748,7 +776,13 @@ def create_executive_summary_tab(df, active_filter="all"):
         html.Div([
             html.H2("📋 Riepilogo Esecutivo", className="mb-2"),
             html.P("Vista semplificata delle performance aziendali - Aggiornamento in tempo reale", 
-                   className="text-muted", style={"fontSize": "0.95rem"})
+                   className="text-muted", style={"fontSize": "0.95rem"}),
+            html.P(
+                "Questa sezione raccoglie i numeri principali dell'azienda in formato facile da leggere: "
+                "valori medi, variazioni recenti e consigli automatici per capire subito dove intervenire.",
+                className="text-secondary",
+                style={"fontSize": "0.9rem"}
+            )
         ], className="text-center mb-4"),
         
         # Filtri rapidi pre-configurati
@@ -1006,6 +1040,7 @@ def create_dashboard_tab(df, df_full):
 
 def create_about_tab():
     """Tab Info Aziendali"""
+    last_update_text = f"Ultimo aggiornamento: {get_current_month_year_it()}"
     return dbc.Container([
         html.H2("Chi è E-Lithium S.p.A.", className="mt-4"),
         html.P("""
@@ -1029,12 +1064,24 @@ def create_about_tab():
         ]),
         html.H4("🏢 Dati Aziendali"),
         html.Ul([
-            html.Li("Sede: Roma (Italia)"),
-            html.Li("Dipendenti: 250"),
-            html.Li("Capacità produttiva: 1.000 kg/giorno di litio raffinato"),
-            html.Li("Fatturato annuo: €18 milioni"),
+            html.Li([
+                html.Strong("Sede:"),
+                " Monte Amiata - Grosseto/Siena - Toscana (Italia)"
+            ]),
+            html.Li([
+                html.Strong("Dipendenti:"),
+                " 250"
+            ]),
+            html.Li([
+                html.Strong("Capacità produttiva:"),
+                " 1.000 kg/giorno di litio raffinato"
+            ]),
+            html.Li([
+                html.Strong("Fatturato annuo:"),
+                " €18 milioni"
+            ]),
         ]),
-        html.P("Ultimo aggiornamento: Novembre 2025", className="text-muted fst-italic")
+        html.P(last_update_text, className="text-muted fst-italic")
     ])
 
 
