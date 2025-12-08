@@ -562,7 +562,7 @@ app.layout = dbc.Container([
         dbc.ModalFooter([
             dbc.Button("Inizia l'Esplorazione", id="close-welcome", color="primary", size="lg", className="w-100")
         ])
-    ], id="welcome-modal", is_open=True, backdrop="static", keyboard=False, size="lg"),
+    ], id="welcome-modal", is_open=True, backdrop="static", keyboard=False, size="lg", centered=True),
 
     html.Div(id="tab-content", className="flex-grow-1 w-100"),
     
