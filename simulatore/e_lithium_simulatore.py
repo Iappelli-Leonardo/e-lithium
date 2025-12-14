@@ -94,7 +94,6 @@ if __name__ == "__main__":
     df.to_csv(OUTPUT_FILE, index=False)
     print(f"[DEBUG] Directory di lavoro attuale: {os.getcwd()}")
     print(f"[DEBUG] Percorso file di output: {OUTPUT_FILE}")
-
     
     print(f"[E-lithium S.p.A.] Dati simulati salvati in: {OUTPUT_FILE}")
     print(df.head())

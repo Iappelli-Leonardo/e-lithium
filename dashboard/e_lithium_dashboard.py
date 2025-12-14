@@ -13,7 +13,7 @@ from scipy import stats
 from scipy.stats import gaussian_kde
 
 
-# Dashboard Interattiva E-Lithium S.p.A. - Versione 2.0
+# Dashboard Interattiva E-Lithium S.p.A.
 # Sistema di monitoraggio e analisi dei dati di produzione
 # Visualizzazione real-time delle metriche aziendali
 
@@ -31,7 +31,7 @@ if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
     except Exception as e:
         print(f"[Dashboard] Errore nell'avvio del simulatore: {str(e)}")
 
-# Funzione per caricare i dati in modo fresco da CSV
+# Funzione per caricare i dati aggiornati da CSV
 def load_data():
     df = pd.read_csv(csv_path)
     df["data"] = pd.to_datetime(df["data"])
