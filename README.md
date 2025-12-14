@@ -1,5 +1,6 @@
-## codice sorgente - elaborato tesi corso di laurea triennale L-31 - Leonardo Iappelli
-
+<p align="center" style="margin-bottom: 30px;">
+<strong>Codice sorgente - elaborato tesi corso di laurea triennale L-31 - Leonardo Iappelli</strong>
+</p>
 
 
 
