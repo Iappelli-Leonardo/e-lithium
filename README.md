@@ -1,3 +1,9 @@
+
+## Codice sorgente elaborato tesi triennale Leonardo Iappelli 
+
+
+
+
 ## E-Lithium – Dashboard di Monitoraggio Produzione Litio
 
 Questo progetto realizza una **dashboard interattiva** per l'azienda simulata
